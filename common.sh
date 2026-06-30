@@ -181,6 +181,25 @@ launch_vllm() {
     echo "Server ready (config=$config_name pid=$SERVER_PID)"
 }
 
+# run_mmlu_pro — MMLU-Pro accuracy check against the live server, via InferenceX's
+# lm-eval helpers (auto-installs lm-eval-harness, patches it, hits the OpenAI chat
+# endpoint). GLM-5.2-FP8 is text-only, so MMMU-Pro is not applicable.
+# Tunables: MMLU_PRO_TASK (default mmlu_pro), EVAL_CONC (default 64).
+run_mmlu_pro() {
+    local out="$SAVE_DIR/mmlu_pro"
+    mkdir -p "$out"
+    export EVAL_TASKS_DIR="${MMLU_PRO_TASK:-mmlu_pro}"   # builtin lm-eval task name
+    export EVAL_RESULT_DIR="$out"
+    export EVAL_CONCURRENT_REQUESTS="${EVAL_CONC:-64}"
+    export EVAL_MAX_MODEL_LEN="$MAX_MODEL_LEN"
+    echo "=============================================================="
+    echo "  MMLU-Pro eval: config=$CONFIG task=$EVAL_TASKS_DIR conc=$EVAL_CONCURRENT_REQUESTS"
+    echo "  results -> $out"
+    echo "=============================================================="
+    # run_eval / run_lm_eval are provided by InferenceX benchmark_lib.sh.
+    run_eval --framework lm-eval --port "$PORT"
+}
+
 # serve_main — entrypoint every servers/*.sh calls after defining:
 #     CONFIG       config label (e.g. opt04c_moe_deepgemm)
 #     BENCH_MODE   mtp | nonmtp  (whether the bench client adds --use-chat-template)
@@ -189,6 +208,7 @@ launch_vllm() {
 # Default: launch the server, wait for health, stay in the foreground so you
 # can benchmark it from another shell (matches the manual workflow).
 # Set RUN_BENCH=1 (run.sh does this) to launch -> sweep -> tear down end-to-end.
+# Set RUN_EVAL=1 to launch -> MMLU-Pro accuracy eval -> tear down.
 serve_main() {
     # Everything for this config lands in results/<CONFIG>/.
     SAVE_DIR="$REPO_ROOT/results/$CONFIG"
@@ -200,7 +220,11 @@ serve_main() {
     start_gpu_monitor --output "$SAVE_DIR/gpu.csv" 2>/dev/null || true
     launch_vllm "$CONFIG" "${SERVE_ARGS[@]}" || exit 1
 
-    if [[ "${RUN_BENCH:-0}" == "1" ]]; then
+    if [[ "${RUN_EVAL:-0}" == "1" ]]; then
+        run_mmlu_pro
+        stop_gpu_monitor 2>/dev/null || true
+        cleanup_server
+    elif [[ "${RUN_BENCH:-0}" == "1" ]]; then
         CONFIG="$CONFIG" BENCH_MODE="$BENCH_MODE" SWEEP="${SWEEP:-full}" PORT="$PORT" \
             bash "$REPO_ROOT/bench/bench.sh" --config "$CONFIG" --mode "$BENCH_MODE"
         stop_gpu_monitor 2>/dev/null || true

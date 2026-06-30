@@ -39,6 +39,19 @@ Bench mode is `mtp` (client adds `--use-chat-template`) for everything except
 | 9 | `opt09_flashinfer_sampler.sh` | Sampler | `VLLM_USE_FLASHINFER_SAMPLER=1` | mtp |
 | 10 | `opt10_cudagraph.sh` | CUDA graph | `--max-num-seqs 256 --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[…]}'` | mtp |
 | — | `ref_nonmtp.sh` | Reference | MTP disabled — quantifies MTP's contribution | **nonmtp** |
+| — | `final.sh` | **Recommended config TEMPLATE** | fill in the winning flags; ships equal to baseline | mtp |
+
+## Quality check (MMLU-Pro)
+
+Any server script also supports an accuracy run instead of a throughput sweep:
+
+```bash
+RUN_EVAL=1 bash servers/final.sh        # launch -> lm-eval mmlu_pro -> teardown
+bash eval/quality_check.sh baseline final   # run both + print comparison table
+```
+
+Reuses InferenceX's `run_eval`/lm-eval helpers; results land in
+`results/<config>/mmlu_pro/`. `EVAL_CONC` (default 64) sets eval concurrency.
 
 ## Notes on flag names (vLLM 0.23.x verified)
 

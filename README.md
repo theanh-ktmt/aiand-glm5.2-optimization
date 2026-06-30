@@ -20,6 +20,9 @@ bench/bench.sh       InferenceX-style sweep (MTP and non-MTP) against a live ser
 run.sh               one config end-to-end: launch -> sweep -> teardown -> CSV
 run_all.sh           the whole campaign: baseline FULL + every opt SUBSET -> all.csv
 aggregate.py         result JSONs -> CSV (sheet-pasteable)
+servers/final.sh     TEMPLATE for the recommended config (fill in winners)
+eval/quality_check.sh  MMLU-Pro: baseline vs recommended config
+eval/parse_mmlu.py   lm-eval results -> accuracy comparison table + Pass?
 results/<config>/    per-config outputs: *.json, server.log (with launch command),
                      bench.log, gpu.csv  (git-ignored)
 third_party/InferenceX  benchmark engine (submodule)
@@ -94,11 +97,27 @@ bash run_all.sh                    # baseline FULL + every opt SUBSET
 python3 aggregate.py results --baseline baseline --out results/all.csv
 ```
 
+### Final config + quality check
+
+After screening, edit `servers/final.sh` (a template; each slot maps to an
+optimization group) to combine the winning flags, then:
+
+```bash
+bash run.sh final full                      # full throughput/latency sweep
+bash eval/quality_check.sh baseline final   # MMLU-Pro accuracy, baseline vs final
+```
+
+`quality_check.sh` launches each config, runs lm-eval `mmlu_pro` against the chat
+endpoint (auto-installing lm-eval-harness via InferenceX), tears down, and prints
+a table with the accuracy delta and a Pass? verdict (fails if the candidate
+regresses more than 1.0 accuracy point; tune with `--threshold`). Results also go
+to `results/quality_check.csv`. GLM-5.2-FP8 is text-only, so MMMU-Pro is skipped.
+
 ## Workflow
 
 1. Benchmark **baseline** (FULL sweep) - the reference curve.
 2. For each optimization, run a **SUBSET** sweep (`opt*`) and compare to baseline.
-3. Collect the winners into a final config under `servers/` and run a **FULL** sweep.
-4. Run the quality check (MMLU Pro) on the final config vs baseline.
+3. Collect the winners into `servers/final.sh` and run a **FULL** sweep.
+4. Run `eval/quality_check.sh` (MMLU-Pro) on the final config vs baseline.
 
 See `SERVERS.md` for the full list of server scripts and what each one changes.
