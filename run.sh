@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 # run.sh — end-to-end runner for ONE configuration:
 #   launch server -> InferenceX sweep -> tear down -> aggregate to CSV
-#   -> sync to W&B + git-backup the CSV (durability for on-demand cloud runs).
+#   -> sync everything (metrics + CSV + JSONs + logs) to W&B.
 #
 # Usage:
 #   bash run.sh baseline                 # full sweep (1k1k + 8k1k, conc 1..128)
@@ -12,9 +12,8 @@
 #   $1  config name = servers/<name>.sh   (required)
 #   $2  sweep: full | subset              (default: subset)
 #
-# Durability knobs (both default ON):
-#   WANDB=0       disable W&B sync       (else needs WANDB_API_KEY; see .env)
-#   GIT_BACKUP=0  disable git CSV commit+push
+# Durability: W&B is the off-box store for these on-demand cloud runs.
+#   WANDB=0  disable W&B sync (else needs WANDB_API_KEY; see .env)
 # ---------------------------------------------------------------------------
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -42,13 +41,4 @@ if [[ "${WANDB:-1}" != "0" ]]; then
     echo "### W&B SYNC $NAME ###"
     python3 -c "import wandb" 2>/dev/null || pip install -q wandb 2>/dev/null || true
     python3 "$REPO_ROOT/wandb_sync.py" --config "$NAME" || echo "WARN: W&B sync failed"
-fi
-
-if [[ "${GIT_BACKUP:-1}" != "0" ]]; then
-    echo "### GIT BACKUP $NAME ###"
-    git -C "$REPO_ROOT" add -f "results/$NAME.csv" 2>/dev/null \
-        && git -C "$REPO_ROOT" commit -q -m "results: $NAME ($(date -u +%FT%TZ))" 2>/dev/null \
-        && git -C "$REPO_ROOT" push -q 2>/dev/null \
-        && echo "git backup pushed: results/$NAME.csv" \
-        || echo "WARN: git backup skipped/failed (no creds, no change, or offline)"
 fi

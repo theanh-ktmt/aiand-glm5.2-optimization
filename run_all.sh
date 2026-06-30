@@ -55,12 +55,4 @@ echo "==================== combined CSV ===================="
 python3 "$REPO_ROOT/aggregate.py" "$REPO_ROOT/results" \
     --baseline baseline --out "$REPO_ROOT/results/all.csv"
 echo "Combined: results/all.csv"
-
-# Back up the combined CSV too (per-config sync/backup already ran in run.sh).
-if [[ "${GIT_BACKUP:-1}" != "0" ]]; then
-    git -C "$REPO_ROOT" add -f "results/all.csv" 2>/dev/null \
-        && git -C "$REPO_ROOT" commit -q -m "results: combined all.csv ($(date -u +%FT%TZ))" 2>/dev/null \
-        && git -C "$REPO_ROOT" push -q 2>/dev/null \
-        && echo "git backup pushed: results/all.csv" \
-        || echo "WARN: git backup of all.csv skipped/failed"
-fi
+# (Per-config results are already in W&B; each run.sh call synced its config.)

@@ -69,28 +69,26 @@ Each config writes everything to `results/<config>/`:
 - `gpu.csv` - per-second GPU power/clocks/util (via InferenceX `start_gpu_monitor`).
 - `*.json` - one `benchmark_serving` result per (scenario, concurrency).
 
-## Durability (W&B + git backup)
+## Durability (Weights & Biases)
 
-These runs are long and unattended on on-demand cloud boxes, so results are
-pushed off the (ephemeral) instance as each config finishes:
+These runs are long and unattended on on-demand cloud boxes, so each config's
+results are pushed to W&B the moment it finishes — if the instance dies later,
+nothing is lost. `wandb_sync.py` logs (one run per config):
 
-- **Weights & Biases** (primary): `wandb_sync.py` logs per-concurrency curves
-  (throughput / TTFT / TPOT, x-axis = concurrency) so configs overlay in the
-  dashboard, a summary table, and the raw JSONs + `server.log`/`bench.log`/`gpu.csv`
-  as a run artifact.
-- **Git CSV backup** (fallback): the small aggregated `results/*.csv` are
-  committed and pushed to this repo after each config (per-config dirs stay out
-  of git — they live in W&B artifacts).
+- per-concurrency curves (throughput / TTFT / TPOT, x-axis = concurrency) so
+  configs overlay in the dashboard;
+- a summary table of every row;
+- the raw JSONs + `server.log` / `bench.log` / `gpu.csv` + the CSV as a run artifact.
 
-Both run automatically at the end of `run.sh` / `run_all.sh`. Setup on the box:
+Runs automatically at the end of `run.sh` / `run_all.sh`. Setup on the box:
 
 ```bash
 cp .env.example .env      # then put your WANDB_API_KEY in .env (git-ignored)
 ```
 
-`.env` is auto-loaded. Disable either path with `WANDB=0` or `GIT_BACKUP=0`.
-Git backup push needs the box to have GitHub push credentials; if absent it fails
-soft (W&B still has everything).
+`.env` is auto-loaded; `wandb` is auto-installed if missing. Disable with `WANDB=0`.
+Project defaults to `glm5.2-fp8-opt` (override `WANDB_PROJECT`). Nothing in
+`results/` is committed to git — W&B is the store.
 
 ## Usage
 
