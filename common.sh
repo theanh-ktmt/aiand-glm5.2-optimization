@@ -101,9 +101,39 @@ ensure_model() {
     fi
 }
 
+# Bounded readiness wait. Unlike InferenceX's wait_for_server_ready (which loops
+# forever until healthy), this gives up after SERVER_STARTUP_TIMEOUT seconds so a
+# hung / crash-looping launch fails the run instead of blocking. Returns non-zero
+# on timeout or if the server process dies. Default timeout: 900s (15 min).
+SERVER_STARTUP_TIMEOUT="${SERVER_STARTUP_TIMEOUT:-900}"
+export SERVER_STARTUP_TIMEOUT
+
+wait_for_health() {
+    local timeout="$SERVER_STARTUP_TIMEOUT" interval=5 waited=0
+    # Wait for the log file to appear (container startup may delay it).
+    while [[ ! -f "$SERVER_LOG" ]]; do
+        kill -0 "$SERVER_PID" 2>/dev/null || { echo "Server died before creating log."; return 1; }
+        sleep 1; waited=$((waited + 1)); (( waited >= timeout )) && { echo "Timed out waiting for log."; return 1; }
+    done
+    # Stream the log while we poll /health.
+    tail -f -n +1 "$SERVER_LOG" & local tail_pid=$!
+    while true; do
+        if curl --output /dev/null --silent --fail "http://0.0.0.0:$PORT/health"; then
+            kill "$tail_pid" 2>/dev/null; return 0
+        fi
+        if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+            echo "Server process died before becoming healthy."; kill "$tail_pid" 2>/dev/null; return 1
+        fi
+        if (( waited >= timeout )); then
+            echo "Server not healthy within ${timeout}s; giving up."; kill "$tail_pid" 2>/dev/null; return 1
+        fi
+        sleep "$interval"; waited=$((waited + interval))
+    done
+}
+
 # launch_vllm <config-name> <extra serve args...>
 # Combines common flags + caller's optimization flags, starts the server,
-# waits for /health, and leaves SERVER_PID set for the caller / trap.
+# waits for /health (bounded by SERVER_STARTUP_TIMEOUT), and leaves SERVER_PID set.
 launch_vllm() {
     local config_name="$1"; shift
     ensure_model
@@ -143,8 +173,8 @@ launch_vllm() {
     vllm serve "$SERVE_MODEL" "${args[@]}" >> "$SERVER_LOG" 2>&1 &
     SERVER_PID=$!
 
-    if ! wait_for_server_ready --port "$PORT" --server-log "$SERVER_LOG" --server-pid "$SERVER_PID"; then
-        echo "ERROR: server failed to become healthy for config $config_name"
+    if ! wait_for_health; then
+        echo "ERROR: server failed to become healthy for config $config_name (timeout=${SERVER_STARTUP_TIMEOUT}s)"
         cleanup_server
         return 1
     fi

@@ -17,9 +17,7 @@ Bench mode is `mtp` (client adds `--use-chat-template`) for everything except
 | 0 | `baseline.sh` | **Baseline (Day 0)** | `--tensor-parallel-size 8` `--speculative-config '{"method":"mtp","num_speculative_tokens":5}'` | mtp |
 | 1a | `opt01a_tp8ep.sh` | Parallelism: TP8 + EP | `--enable-expert-parallel` | mtp |
 | 1b | `opt01b_dp8ep.sh` | Parallelism: DP8 + EP | `--data-parallel-size 8 --enable-expert-parallel` (base for 5/6/7) | mtp |
-| 2a | `opt02a_max_num_seqs.sh` | Hyperparam | `--max-num-seqs ${MAX_NUM_SEQS:-256}` | mtp |
-| 2b | `opt02b_max_num_batched_tokens.sh` | Hyperparam | `--max-num-batched-tokens ${MNBT:-16384}` | mtp |
-| 2c | `opt02c_gpu_memory_utilization.sh` | Hyperparam | `--gpu-memory-utilization ${GMU:-0.92}` | mtp |
+| 2 | `opt02_hyperparams.sh` | Hyperparameters | `--max-num-batched-tokens 8192 --max-num-seqs 256 --gpu-memory-utilization 0.95` | mtp |
 | 3a | `opt03a_attn_flashinfer_trtllm.sh` | Attention backend | `VLLM_ATTENTION_BACKEND=FLASHINFER_MLA_SPARSE` (FlashInfer + TRT-LLM decode) | mtp |
 | 3b | `opt03b_attn_flashmla.sh` | Attention backend | `VLLM_ATTENTION_BACKEND=FLASHMLA_SPARSE` | mtp |
 | 4a | `opt04_moe_triton.sh` | MoE backend | `--moe-backend triton` | mtp |
@@ -38,10 +36,8 @@ Bench mode is `mtp` (client adds `--use-chat-template`) for everything except
 | 8c | `opt08_mtp3.sh` | MTP | `num_speculative_tokens=3` | mtp |
 | 8d | `opt08_mtp4.sh` | MTP | `num_speculative_tokens=4` | mtp |
 | 8e | `opt08_mtp_disable_bs64.sh` | MTP | MTP(5), disabled above batch 64 (`num_speculative_tokens_per_batch_size`) | mtp |
-| 8f | `opt08_mtp_disable_bs128.sh` | MTP | MTP(5), disabled above batch 128 | mtp |
 | 9 | `opt09_flashinfer_sampler.sh` | Sampler | `VLLM_USE_FLASHINFER_SAMPLER=1` | mtp |
-| 10a | `opt10a_cudagraph_full_piecewise.sh` | CUDA graph | `--compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE"}'` | mtp |
-| 10b | `opt10b_cudagraph_tuned_capture.sh` | CUDA graph | FULL_AND_PIECEWISE + tuned `cudagraph_capture_sizes` | mtp |
+| 10 | `opt10_cudagraph.sh` | CUDA graph | `--max-num-seqs 256 --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[…]}'` | mtp |
 | — | `ref_nonmtp.sh` | Reference | MTP disabled — quantifies MTP's contribution | **nonmtp** |
 
 ## Notes on flag names (vLLM 0.23.x verified)
@@ -61,5 +57,8 @@ Bench mode is `mtp` (client adds `--use-chat-template`) for everything except
 - **EPLB**: configured via a single `--eplb-config` JSON
   (`window_size`, `step_interval`, `num_redundant_experts`, …).
 
-These are screening configs: tune the placeholder values (e.g. `MAX_NUM_SEQS`,
-`MNBT`, `GMU`, `EPLB_REDUNDANT`) via the env vars shown, sweep, and keep the winners.
+These are screening configs: adjust the values inline (or via the env vars shown,
+e.g. `EPLB_REDUNDANT`, the DBO thresholds), sweep, and keep the winners.
+
+Server startup is bounded by `SERVER_STARTUP_TIMEOUT` (default **900s = 15 min**);
+a launch that doesn't pass `/health` in time fails the run instead of hanging.

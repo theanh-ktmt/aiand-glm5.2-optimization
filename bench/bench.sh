@@ -22,7 +22,7 @@
 #   BENCH_MODE    mtp | nonmtp                       (default mtp)
 #   SWEEP         full | subset                      (default full)
 #                   full   -> conc 1 2 4 8 16 32 64 128, scenarios 1k1k + 8k1k
-#                   subset -> conc 1 8 32,             scenarios 1k1k + 8k1k
+#                   subset -> conc 1 16 128,           scenarios 1k1k + 8k1k
 #   CONCS         override concurrency list          (e.g. "1 8 32")
 #   SCENARIOS     override scenarios "ISL:OSL ..."   (e.g. "1024:1024 8192:1024")
 #   RANDOM_RANGE_RATIO                                (default 0.8)
@@ -59,7 +59,7 @@ SCENARIOS="${SCENARIOS:-1024:1024 8192:1024}"
 if [[ -z "${CONCS:-}" ]]; then
     case "$SWEEP" in
         full)   CONCS="1 2 4 8 16 32 64 128" ;;
-        subset) CONCS="1 8 32" ;;
+        subset) CONCS="1 16 128" ;;
         *) echo "ERROR: SWEEP must be full|subset"; exit 1 ;;
     esac
 fi

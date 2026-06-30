@@ -46,7 +46,8 @@ and `export MODEL_PATH=/path/to/GLM-5.2-FP8` to skip the HF download.
 - Random dataset, `--random-range-ratio 0.8`, `--request-rate inf`,
   `--ignore-eos`, `--num-warmups = 2x concurrency`, `--num-prompts = 10x concurrency`.
 - Scenarios: **1k/1k** (`1024:1024`) and **8k/1k** (`8192:1024`).
-- Concurrency sweep: `1 2 4 8 16 32 64 128` (FULL) or `1 8 32` (SUBSET, for screening).
+- Concurrency sweep: `1 2 4 8 16 32 64 128` (FULL) or `1 16 128` (SUBSET, for
+  screening — 128 also exercises the batch-size-gated MTP disable).
 - **MTP vs non-MTP** differ on the client by exactly one flag: MTP adds
   `--use-chat-template` (spec decoding was trained on chat-formatted input;
   raw prompts silently tank acceptance length). The baseline uses MTP(5), so it

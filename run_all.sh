@@ -24,16 +24,15 @@ OPT_SWEEP="${OPT_SWEEP:-subset}"
 ALL_CONFIGS=(
     baseline
     opt01a_tp8ep opt01b_dp8ep
-    opt02a_max_num_seqs opt02b_max_num_batched_tokens opt02c_gpu_memory_utilization
+    opt02_hyperparams
     opt03a_attn_flashinfer_trtllm opt03b_attn_flashmla
     opt04_moe_triton opt04_moe_cutlass opt04_moe_deepgemm opt04_moe_flashinfer_trtllm
     opt05_a2a_naive opt05_a2a_pplx opt05_a2a_deepep_low_latency
     opt05_a2a_deepep_high_throughput opt05_a2a_flashinfer_nvlink
     opt06_eplb opt07_dbo
-    opt08_mtp1 opt08_mtp2 opt08_mtp3 opt08_mtp4
-    opt08_mtp_disable_bs64 opt08_mtp_disable_bs128
+    opt08_mtp1 opt08_mtp2 opt08_mtp3 opt08_mtp4 opt08_mtp_disable_bs64
     opt09_flashinfer_sampler
-    opt10a_cudagraph_full_piecewise opt10b_cudagraph_tuned_capture
+    opt10_cudagraph
     ref_nonmtp
 )
 
