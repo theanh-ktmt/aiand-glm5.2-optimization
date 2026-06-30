@@ -41,6 +41,18 @@ git submodule update --init --recursive
 Run inside the vLLM 0.23.x container on a B300 node. Optional: pre-stage weights
 and `export MODEL_PATH=/path/to/GLM-5.2-FP8` to skip the HF download.
 
+**Run the preflight first** — it validates the environment without launching the
+model (tools, vLLM version, GPU count, InferenceX submodule, and crucially that
+every `--flag` the configs use exists in *this* `vllm serve --help`, plus the
+opt03 attention-backend names):
+
+```bash
+bash preflight.sh        # exit 0 = good to go; FAIL lines list anything missing
+```
+
+If a flag FAILs (e.g. `--moe-backend`/`--all2all-backend`/`--enable-dbo` may be
+newer than your exact build), either update vLLM or skip that optimization.
+
 ## Benchmark method (InferenceX)
 
 - **Prefix caching is always off** (`--no-enable-prefix-caching`) - otherwise

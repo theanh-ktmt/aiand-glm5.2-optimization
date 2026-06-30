@@ -204,8 +204,14 @@ run_mmlu_pro() {
     echo "  MMLU-Pro eval: config=$CONFIG task=$EVAL_TASKS_DIR conc=$EVAL_CONCURRENT_REQUESTS"
     echo "  results -> $out"
     echo "=============================================================="
-    # run_eval / run_lm_eval are provided by InferenceX benchmark_lib.sh.
+    # run_eval / run_lm_eval are provided by InferenceX benchmark_lib.sh, which
+    # wasn't written for `set -u` (it reads some optional vars unguarded). Relax
+    # nounset just around the call so an unset optional var doesn't abort the eval.
+    set +u
     run_eval --framework lm-eval --port "$PORT"
+    local rc=$?
+    set -u
+    return $rc
 }
 
 # serve_main — entrypoint every servers/*.sh calls after defining:
