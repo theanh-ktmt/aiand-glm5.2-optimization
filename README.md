@@ -1,4 +1,4 @@
-# aiand-glm5.2-optimization
+# (AI&) GLM 5.2 FP8 Optimizations
 
 Benchmark harness to find the best **vLLM 0.23.x** server configuration for
 **`zai-org/GLM-5.2-FP8`** on **8x NVIDIA B300**, maximizing throughput while
