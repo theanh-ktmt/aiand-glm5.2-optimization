@@ -12,6 +12,9 @@
 # Usage:
 #   bash run_all.sh                 # baseline full + all opts subset
 #   bash run_all.sh --only opt04_moe_deepgemm opt09_flashinfer_sampler
+#   SKIP_EXISTING=1 bash run_all.sh # resume: skip configs already done
+#                                   #   (those with results/<cfg>.csv, e.g. a
+#                                   #    baseline you ran earlier via run.sh)
 #   BASELINE_SWEEP=subset bash run_all.sh   # quick smoke of the whole pipeline
 # ---------------------------------------------------------------------------
 set -uo pipefail
@@ -45,6 +48,12 @@ fi
 for cfg in "${CONFIGS[@]}"; do
     sweep="$OPT_SWEEP"
     [[ "$cfg" == "baseline" ]] && sweep="$BASELINE_SWEEP"
+    # Resume: skip a config that already completed (run.sh writes results/<cfg>.csv
+    # only after a successful sweep+aggregate, so it's a reliable completion marker).
+    if [[ "${SKIP_EXISTING:-0}" == "1" && -f "$REPO_ROOT/results/$cfg.csv" ]]; then
+        echo "==================== SKIP $cfg (results/$cfg.csv exists) ===================="
+        continue
+    fi
     echo "==================== $cfg (sweep=$sweep) ===================="
     if ! bash "$REPO_ROOT/run.sh" "$cfg" "$sweep"; then
         echo "WARN: $cfg failed; continuing to next config." >&2
