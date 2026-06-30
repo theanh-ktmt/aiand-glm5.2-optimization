@@ -40,6 +40,9 @@ export NUM_GPUS="${NUM_GPUS:-8}"            # used by aggregator for per-GPU tpu
 # max-model-len must cover the largest scenario (8k ISL + 1k OSL + buffer).
 export MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
 
+# Where vLLM looks for / caches model weights (cloud container default).
+export DOWNLOAD_DIR="${DOWNLOAD_DIR:-/workspace/models}"
+
 # Per-config save directory. serve_main sets SAVE_DIR=results/<CONFIG> and points
 # SERVER_LOG at it; this top-level value is only a fallback for direct callers.
 SAVE_DIR="${SAVE_DIR:-$REPO_ROOT/results}"
@@ -56,6 +59,7 @@ common_serve_args() {
         --host 0.0.0.0 --port "$PORT" \
         --trust-remote-code \
         --no-enable-prefix-caching \
+        --download-dir "$DOWNLOAD_DIR" \
         --max-model-len "$MAX_MODEL_LEN" \
         --tool-call-parser glm47 \
         --enable-auto-tool-choice \
@@ -89,15 +93,19 @@ cleanup_server() {
     SERVER_PID=""
 }
 
-# Download weights if a local MODEL_PATH was given but is empty.
+# Ensure weights are available.
+#   * If MODEL_PATH points to an explicit local dir, download into it when empty.
+#   * Otherwise rely on vLLM's --download-dir ($DOWNLOAD_DIR, e.g. the cloud
+#     container's /workspace/models cache): vLLM loads from there if present and
+#     fetches into it if not, so no separate pre-download is needed.
 ensure_model() {
     if [[ -n "$MODEL_PATH" ]]; then
         if [[ ! -d "$MODEL_PATH" || -z "$(ls -A "$MODEL_PATH" 2>/dev/null)" ]]; then
             echo "=== MODEL_PATH ($MODEL_PATH) empty, downloading $MODEL ==="
             hf download "$MODEL" --local-dir "$MODEL_PATH"
         fi
-    elif [[ "$SERVE_MODEL" != /* ]]; then
-        hf download "$SERVE_MODEL" || true
+    else
+        echo "=== Using vLLM --download-dir cache: $DOWNLOAD_DIR (model: $SERVE_MODEL) ==="
     fi
 }
 
