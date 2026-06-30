@@ -40,9 +40,12 @@ export NUM_GPUS="${NUM_GPUS:-8}"            # used by aggregator for per-GPU tpu
 # max-model-len must cover the largest scenario (8k ISL + 1k OSL + buffer).
 export MAX_MODEL_LEN="${MAX_MODEL_LEN:-16384}"
 
-SERVER_LOG="${SERVER_LOG:-$REPO_ROOT/results/server.log}"
-export SERVER_LOG
-mkdir -p "$REPO_ROOT/results"
+# Per-config save directory. serve_main sets SAVE_DIR=results/<CONFIG> and points
+# SERVER_LOG at it; this top-level value is only a fallback for direct callers.
+SAVE_DIR="${SAVE_DIR:-$REPO_ROOT/results}"
+SERVER_LOG="${SERVER_LOG:-$SAVE_DIR/server.log}"
+export SAVE_DIR SERVER_LOG
+mkdir -p "$SAVE_DIR"
 
 # --- Mandatory flags shared by all configurations --------------------------
 # IMPORTANT: --no-enable-prefix-caching is REQUIRED. With prefix caching on,
@@ -110,13 +113,34 @@ launch_vllm() {
     read -r -a args <<< "$(common_serve_args)"
     args+=("$@")
 
+    # Build a copy-pasteable, safely-quoted command string.
+    local cmd_str a
+    cmd_str="vllm serve $(printf '%q' "$SERVE_MODEL")"
+    for a in "${args[@]}"; do cmd_str+=" $(printf '%q' "$a")"; done
+
     echo "=============================================================="
     echo "  Launching config: $config_name"
-    echo "  vllm serve $SERVE_MODEL ${args[*]}"
+    echo "  $cmd_str"
     echo "=============================================================="
 
-    : > "$SERVER_LOG"
-    vllm serve "$SERVE_MODEL" "${args[@]}" > "$SERVER_LOG" 2>&1 &
+    # Record the exact command + relevant env into the head of the server log,
+    # so each log is self-describing and reproducible.
+    {
+        echo "# =========================================================="
+        echo "# config : $config_name"
+        echo "# date   : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "# model  : $SERVE_MODEL"
+        echo "# env    : VLLM_ATTENTION_BACKEND=${VLLM_ATTENTION_BACKEND:-<unset>}" \
+             "VLLM_USE_DEEP_GEMM=${VLLM_USE_DEEP_GEMM:-<unset>}" \
+             "VLLM_USE_FLASHINFER_SAMPLER=${VLLM_USE_FLASHINFER_SAMPLER:-<unset>}" \
+             "VLLM_ALL2ALL_BACKEND=${VLLM_ALL2ALL_BACKEND:-<unset>}"
+        echo "# command:"
+        echo "$cmd_str"
+        echo "# =========================================================="
+        echo
+    } > "$SERVER_LOG"
+
+    vllm serve "$SERVE_MODEL" "${args[@]}" >> "$SERVER_LOG" 2>&1 &
     SERVER_PID=$!
 
     if ! wait_for_server_ready --port "$PORT" --server-log "$SERVER_LOG" --server-pid "$SERVER_PID"; then
@@ -136,8 +160,14 @@ launch_vllm() {
 # can benchmark it from another shell (matches the manual workflow).
 # Set RUN_BENCH=1 (run.sh does this) to launch -> sweep -> tear down end-to-end.
 serve_main() {
+    # Everything for this config lands in results/<CONFIG>/.
+    SAVE_DIR="$REPO_ROOT/results/$CONFIG"
+    SERVER_LOG="$SAVE_DIR/server.log"
+    export SAVE_DIR SERVER_LOG
+    mkdir -p "$SAVE_DIR"
+
     trap cleanup_server EXIT INT TERM
-    start_gpu_monitor --output "$REPO_ROOT/results/${CONFIG}_gpu.csv" 2>/dev/null || true
+    start_gpu_monitor --output "$SAVE_DIR/gpu.csv" 2>/dev/null || true
     launch_vllm "$CONFIG" "${SERVE_ARGS[@]}" || exit 1
 
     if [[ "${RUN_BENCH:-0}" == "1" ]]; then

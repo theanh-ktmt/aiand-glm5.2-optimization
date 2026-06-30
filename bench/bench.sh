@@ -75,6 +75,11 @@ fi
 RESULT_DIR="${RESULT_DIR:-$REPO_ROOT/results/$CONFIG}"
 mkdir -p "$RESULT_DIR"
 
+# Tee all benchmark console output to a saved log alongside the result JSONs.
+BENCH_LOG="$RESULT_DIR/bench.log"
+exec > >(tee -a "$BENCH_LOG") 2>&1
+echo "# bench run @ $(date -u +%Y-%m-%dT%H:%M:%SZ)  config=$CONFIG mode=$BENCH_MODE sweep=$SWEEP"
+
 echo "=============================================================="
 echo "  Benchmark: config=$CONFIG mode=$BENCH_MODE sweep=$SWEEP"
 echo "  scenarios=[$SCENARIOS] concs=[$CONCS] rrr=$RANDOM_RANGE_RATIO"

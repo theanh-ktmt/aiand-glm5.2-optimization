@@ -1,14 +1,7 @@
-# Benchmark outputs
-results/**/*.json
-results/**/*.csv
-results/*.csv
-results/*.log
-results/*_gpu.csv
-results/server.log
+# Benchmark outputs (per-config dirs hold *.json, server.log, bench.log, gpu.csv)
+results/*
+!results/.gitkeep
 
 # Python
 __pycache__/
 *.pyc
-
-# Keep the results dir present but empty
-!results/.gitkeep
