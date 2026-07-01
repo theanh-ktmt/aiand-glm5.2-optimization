@@ -54,21 +54,28 @@ mkdir -p "$SAVE_DIR"
 # IMPORTANT: --no-enable-prefix-caching is REQUIRED. With prefix caching on,
 # repeated random/warmup prefixes are served from cache, prefill is skipped,
 # and throughput is inflated. This must never be removed for any config.
+# Populates the global array COMMON_SERVE_ARGS. An array (rather than echoing a
+# string and re-splitting with `read -a`) is REQUIRED so that flag *values*
+# containing spaces survive intact — e.g. a JSON value like
+# --compilation-config '{"cudagraph_mode": "PIECEWISE"}'. Word-splitting an
+# echoed string would break such a value into two tokens and hand vLLM
+# truncated, invalid JSON.
 common_serve_args() {
     # --served-model-name pins the API model id to $MODEL even when we launch
     # from a local weights dir ($MODEL_PATH), so the benchmark client's
     # --model "$MODEL" always matches (otherwise the server advertises the path
     # and requests 404).
-    echo \
-        --host 0.0.0.0 --port "$PORT" \
-        --served-model-name "$MODEL" \
-        --trust-remote-code \
-        --no-enable-prefix-caching \
-        --download-dir "$DOWNLOAD_DIR" \
-        --max-model-len "$MAX_MODEL_LEN" \
-        --tool-call-parser glm47 \
-        --enable-auto-tool-choice \
+    COMMON_SERVE_ARGS=(
+        --host 0.0.0.0 --port "$PORT"
+        --served-model-name "$MODEL"
+        --trust-remote-code
+        --no-enable-prefix-caching
+        --download-dir "$DOWNLOAD_DIR"
+        --max-model-len "$MAX_MODEL_LEN"
+        --tool-call-parser glm47
+        --enable-auto-tool-choice
         --reasoning-parser glm45
+    )
 }
 
 # --- Server lifecycle -------------------------------------------------------
@@ -153,8 +160,8 @@ launch_vllm() {
     nvidia-smi || true
 
     local -a args
-    read -r -a args <<< "$(common_serve_args)"
-    args+=("$@")
+    common_serve_args
+    args=("${COMMON_SERVE_ARGS[@]}" "$@")
 
     # Build a copy-pasteable, safely-quoted command string.
     local cmd_str a
