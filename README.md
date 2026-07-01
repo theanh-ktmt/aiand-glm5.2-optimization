@@ -140,11 +140,15 @@ bash run.sh final full                      # full throughput/latency sweep
 bash eval/quality_check.sh baseline final   # MMLU-Pro accuracy, baseline vs final
 ```
 
-`quality_check.sh` launches each config, runs lm-eval `mmlu_pro` against the chat
-endpoint (auto-installing lm-eval-harness via InferenceX), tears down, and prints
-a table with the accuracy delta and a Pass? verdict (fails if the candidate
-regresses more than 1.0 accuracy point; tune with `--threshold`). Results also go
-to `results/quality_check.csv`. GLM-5.2-FP8 is text-only, so MMMU-Pro is skipped.
+`quality_check.sh` launches each config, runs lm-eval `mmlu_pro` against the
+`/v1/chat/completions` endpoint **with thinking disabled** (via
+`--gen_kwargs '{"chat_template_kwargs": {"enable_thinking": false, "thinking": false}}'`),
+tears down, and prints a table with the accuracy delta and a Pass? verdict (fails
+if the candidate regresses more than 1.0 accuracy point; tune with `--threshold`).
+Results are saved under `results/<config>/mmlu_pro/` (`--output_path` +
+`--log_samples`) and compared into `results/quality_check.csv`. GLM-5.2-FP8 is
+text-only, so MMMU-Pro is skipped. Tunables: `EVAL_CONC` (default 32),
+`MMLU_PRO_TASK`, `EVAL_GEN_KWARGS`.
 
 ## Workflow
 

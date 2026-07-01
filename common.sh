@@ -201,29 +201,45 @@ launch_vllm() {
     echo "Server ready (config=$config_name pid=$SERVER_PID)"
 }
 
-# run_mmlu_pro — MMLU-Pro accuracy check against the live server, via InferenceX's
-# lm-eval helpers (auto-installs lm-eval-harness, patches it, hits the OpenAI chat
-# endpoint). GLM-5.2-FP8 is text-only, so MMMU-Pro is not applicable.
-# Tunables: MMLU_PRO_TASK (default mmlu_pro), EVAL_CONC (default 64).
+# run_mmlu_pro — MMLU-Pro accuracy check against the live server with lm-eval,
+# hitting the OpenAI /v1/chat/completions endpoint. Two requirements baked in:
+#   * results are saved (--output_path + --log_samples)
+#   * THINKING IS OFF — GLM-5.2 is a reasoning model; for MMLU-Pro we disable it
+#     via --gen_kwargs chat_template_kwargs so outputs are the answer, not CoT.
+# GLM-5.2-FP8 is text-only, so MMMU-Pro is not applicable.
+# Tunables: MMLU_PRO_TASK (default mmlu_pro), EVAL_CONC (default 32),
+#           EVAL_GEN_KWARGS (override the gen_kwargs JSON).
 run_mmlu_pro() {
     local out="$SAVE_DIR/mmlu_pro"
     mkdir -p "$out"
-    export EVAL_TASKS_DIR="${MMLU_PRO_TASK:-mmlu_pro}"   # builtin lm-eval task name
-    export EVAL_RESULT_DIR="$out"
-    export EVAL_CONCURRENT_REQUESTS="${EVAL_CONC:-64}"
-    export EVAL_MAX_MODEL_LEN="$MAX_MODEL_LEN"
+    local task="${MMLU_PRO_TASK:-mmlu_pro}"
+    local conc="${EVAL_CONC:-32}"
+    local base="http://0.0.0.0:$PORT/v1/chat/completions"
+    # Disable thinking for GLM-5.2 (enable_thinking=false is the GLM knob; the
+    # extra "thinking" key is harmless and matches the reference recipe).
+    local gen_kwargs="${EVAL_GEN_KWARGS:-{\"chat_template_kwargs\": {\"enable_thinking\": false, \"thinking\": false}}}"
+    export OPENAI_API_KEY="${OPENAI_API_KEY:-EMPTY}"
+
+    # Ensure lm-eval is available (recent version: supports mmlu_pro + JSON gen_kwargs).
+    python3 -c "import lm_eval" 2>/dev/null || pip install -q "lm-eval[api]" 2>/dev/null || true
+
     echo "=============================================================="
-    echo "  MMLU-Pro eval: config=$CONFIG task=$EVAL_TASKS_DIR conc=$EVAL_CONCURRENT_REQUESTS"
+    echo "  MMLU-Pro eval: config=$CONFIG task=$task conc=$conc thinking=OFF"
+    echo "  gen_kwargs: $gen_kwargs"
     echo "  results -> $out"
     echo "=============================================================="
-    # run_eval / run_lm_eval are provided by InferenceX benchmark_lib.sh, which
-    # wasn't written for `set -u` (it reads some optional vars unguarded). Relax
-    # nounset just around the call so an unset optional var doesn't abort the eval.
-    set +u
-    run_eval --framework lm-eval --port "$PORT"
-    local rc=$?
-    set -u
-    return $rc
+
+    # tokenized_requests=False -> client doesn't need the HF tokenizer (offline-safe).
+    python3 -m lm_eval \
+        --model local-chat-completions \
+        --tasks "$task" \
+        --output_path "$out" \
+        --apply_chat_template \
+        --log_samples \
+        --gen_kwargs "$gen_kwargs" \
+        --model_args "model=$MODEL,base_url=$base,api_key=$OPENAI_API_KEY,num_concurrent=$conc,tokenized_requests=False,max_retries=5,timeout=1800" \
+        2>&1 | tee "$out/lm_eval.log"
+    return "${PIPESTATUS[0]}"
 }
 
 # serve_main — entrypoint every servers/*.sh calls after defining:
