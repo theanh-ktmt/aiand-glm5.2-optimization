@@ -55,8 +55,13 @@ mkdir -p "$SAVE_DIR"
 # repeated random/warmup prefixes are served from cache, prefill is skipped,
 # and throughput is inflated. This must never be removed for any config.
 common_serve_args() {
+    # --served-model-name pins the API model id to $MODEL even when we launch
+    # from a local weights dir ($MODEL_PATH), so the benchmark client's
+    # --model "$MODEL" always matches (otherwise the server advertises the path
+    # and requests 404).
     echo \
         --host 0.0.0.0 --port "$PORT" \
+        --served-model-name "$MODEL" \
         --trust-remote-code \
         --no-enable-prefix-caching \
         --download-dir "$DOWNLOAD_DIR" \

@@ -36,6 +36,25 @@ if command -v vllm >/dev/null 2>&1; then
     case "$ver" in 0.23.*) ok "version in 0.23.x" ;; *) warn "version is not 0.23.x — flag names may differ" ;; esac
 fi
 
+echo "== Model =="
+MODEL="${MODEL:-zai-org/GLM-5.2-FP8}"
+DOWNLOAD_DIR="${DOWNLOAD_DIR:-/workspace/models}"
+echo "  MODEL=$MODEL  (client --model / --served-model-name)"
+if [[ -n "${MODEL_PATH:-}" ]]; then
+    echo "  MODEL_PATH=$MODEL_PATH  (the weights the server will actually load)"
+    if [[ -d "$MODEL_PATH" && -n "$(ls -A "$MODEL_PATH" 2>/dev/null)" ]]; then
+        ok "MODEL_PATH exists and is non-empty"
+    else
+        bad "MODEL_PATH is set but missing/empty"
+    fi
+    case "$MODEL_PATH" in
+        *[Gg][Ll][Mm]*) : ;;
+        *) warn "MODEL_PATH doesn't look like a GLM model — the harness serves THIS path, so double-check it's GLM-5.2-FP8 (unset MODEL_PATH to pull $MODEL into $DOWNLOAD_DIR)" ;;
+    esac
+else
+    echo "  MODEL_PATH unset -> server pulls '$MODEL' into --download-dir $DOWNLOAD_DIR"
+fi
+
 echo "== GPUs =="
 if command -v nvidia-smi >/dev/null 2>&1; then
     n="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)"

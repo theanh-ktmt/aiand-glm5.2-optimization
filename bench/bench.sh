@@ -40,6 +40,10 @@ BENCH_MODE="${BENCH_MODE:-mtp}"
 SWEEP="${SWEEP:-full}"
 RANDOM_RANGE_RATIO="${RANDOM_RANGE_RATIO:-0.8}"
 CONFIG="${CONFIG:-}"
+# Tokenizer for the random-dataset client. When serving from a local weights dir
+# ($MODEL_PATH), use it directly so tokenization works offline (the HF id may not
+# be cached). Falls back to $MODEL. Override with TOKENIZER.
+TOKENIZER="${TOKENIZER:-${MODEL_PATH:-$MODEL}}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -96,6 +100,7 @@ for scenario in $SCENARIOS; do
         echo ">>> [$CONFIG/$BENCH_MODE] ISL=$ISL OSL=$OSL CONC=$CONC"
         python3 "$BENCH_PY" \
             --model "$MODEL" \
+            --tokenizer "$TOKENIZER" \
             --backend vllm \
             --base-url "http://0.0.0.0:$PORT" \
             --dataset-name random \
