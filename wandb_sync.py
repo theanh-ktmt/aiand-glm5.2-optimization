@@ -12,7 +12,7 @@ land in W&B as soon as each config finishes, so an instance dying later loses
 nothing.
 
 Auth: set WANDB_API_KEY (or `wandb login`). Project via WANDB_PROJECT
-(default glm5.2-fp8-opt), entity via WANDB_ENTITY. Best-effort: if wandb isn't
+(default aiand-glm5.2-fp8), entity via WANDB_ENTITY. Best-effort: if wandb isn't
 installed or no API key is present, it warns and exits 0 (never fails the run).
 
 Usage:
@@ -61,7 +61,7 @@ def main():
     ap.add_argument("--config", required=True, help="config name (e.g. baseline)")
     ap.add_argument("--csv", help="CSV path (default results/<config>.csv)")
     ap.add_argument("--results-dir", help="dir with JSON/logs (default results/<config>)")
-    ap.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "glm5.2-fp8-opt"))
+    ap.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "aiand-glm5.2-fp8"))
     ap.add_argument("--entity", default=os.environ.get("WANDB_ENTITY"))
     ap.add_argument("--group", default=os.environ.get("WANDB_GROUP"))
     ap.add_argument("--dry-run", action="store_true", help="parse + print, no W&B upload")

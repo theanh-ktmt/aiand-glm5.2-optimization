@@ -99,7 +99,7 @@ cp .env.example .env      # then put your WANDB_API_KEY in .env (git-ignored)
 ```
 
 `.env` is auto-loaded; `wandb` is auto-installed if missing. Disable with `WANDB=0`.
-Project defaults to `glm5.2-fp8-opt` (override `WANDB_PROJECT`). Nothing in
+Project defaults to `aiand-glm5.2-fp8` (override `WANDB_PROJECT`). Nothing in
 `results/` is committed to git — W&B is the store.
 
 ## Usage
