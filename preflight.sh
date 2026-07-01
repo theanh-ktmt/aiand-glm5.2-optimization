@@ -57,9 +57,13 @@ for f in "$REPO_ROOT"/common.sh "$REPO_ROOT"/run.sh "$REPO_ROOT"/run_all.sh \
     bash -n "$f" 2>/dev/null && ok "$(basename "$f")" || bad "syntax: $f"
 done
 
-echo "== Serve flags vs 'vllm serve --help' =="
+echo "== Serve flags vs 'vllm serve --help=all' =="
+# NOTE: plain 'vllm serve --help' only prints config-group pointers in 0.23.x;
+# the actual flags appear under --help=all. Use that so the check is accurate.
+HELP=""
 if command -v vllm >/dev/null 2>&1; then
-    HELP="$(vllm serve --help 2>/dev/null)"
+    HELP="$(vllm serve --help=all 2>/dev/null)"
+    [[ -z "$HELP" ]] && HELP="$(vllm serve --help 2>/dev/null)"   # fallback
     # Collect serve flags ONLY from lines that begin with '--' (the SERVE_ARGS
     # array elements and the common_serve_args echo block). This excludes comments
     # and flags belonging to other commands (nvidia-smi/curl/hf/git) on other lines.
@@ -72,11 +76,32 @@ if command -v vllm >/dev/null 2>&1; then
         if grep -qF -- "$fl" <<< "$HELP" || grep -qF -- "$probe" <<< "$HELP"; then
             ok "$fl"
         else
-            bad "$fl not in 'vllm serve --help' (this build may not support it)"
+            bad "$fl not in 'vllm serve --help=all' (this build may not support it)"
         fi
     done
 else
     warn "vllm not found; skipped flag check"
+fi
+
+echo "== Enum flag values (moe/all2all/kv-cache-dtype) =="
+# Verify the specific choice we pass is accepted by THIS build, by matching it
+# inside the help's '--flag {a,b,c}' choice list.
+check_choice() {  # $1=flag  $2=value
+    local line set
+    line="$(grep -F -- "$1 {" <<< "$HELP" | head -1)"
+    if [[ -z "$line" ]]; then warn "$1: no choice list in help; skipped '$2'"; return; fi
+    set="${line#*\{}"; set="${set%%\}*}"
+    if grep -qE "(^|,)$2(,|\$)" <<< "$set"; then ok "$1 $2"; else bad "$1 $2 not in {$set}"; fi
+}
+if [[ -n "$HELP" ]]; then
+    for enum in --moe-backend --all2all-backend --kv-cache-dtype; do
+        while IFS= read -r val; do
+            [[ -n "$val" ]] && check_choice "$enum" "$val"
+        done < <(grep -rhE "^[[:space:]]*$enum " "$REPO_ROOT"/servers/*.sh "$REPO_ROOT"/common.sh \
+                 | awk -v f="$enum" '{for(i=1;i<NF;i++) if($i==f){print $(i+1)}}' | sort -u)
+    done
+else
+    warn "no help text; skipped enum value check"
 fi
 
 echo "== Attention backends (opt03*) =="
