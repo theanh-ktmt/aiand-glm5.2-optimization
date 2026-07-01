@@ -147,7 +147,7 @@ tears down, and prints a table with the accuracy delta and a Pass? verdict (fail
 if the candidate regresses more than 1.0 accuracy point; tune with `--threshold`).
 Results are saved under `results/<config>/mmlu_pro/` (`--output_path` +
 `--log_samples`) and compared into `results/quality_check.csv`. GLM-5.2-FP8 is
-text-only, so MMMU-Pro is skipped. Tunables: `EVAL_CONC` (default 32),
+text-only, so MMMU-Pro is skipped. Tunables: `EVAL_CONC` (default 64),
 `MMLU_PRO_TASK`, `EVAL_GEN_KWARGS`.
 
 ## Workflow

@@ -53,7 +53,7 @@ bash eval/quality_check.sh baseline final   # run both + print comparison table
 Runs lm-eval `mmlu_pro` directly against `/v1/chat/completions` with **thinking
 disabled** (`--gen_kwargs` `chat_template_kwargs.enable_thinking=false`) and
 `--apply_chat_template`; results (with `--log_samples`) land in
-`results/<config>/mmlu_pro/`. `EVAL_CONC` (default 32) sets eval concurrency;
+`results/<config>/mmlu_pro/`. `EVAL_CONC` (default 64) sets eval concurrency;
 `MMLU_PRO_TASK` / `EVAL_GEN_KWARGS` override the task / gen kwargs.
 
 ## Notes on flag names (vLLM 0.23.x verified)

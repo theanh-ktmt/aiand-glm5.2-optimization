@@ -207,13 +207,13 @@ launch_vllm() {
 #   * THINKING IS OFF — GLM-5.2 is a reasoning model; for MMLU-Pro we disable it
 #     via --gen_kwargs chat_template_kwargs so outputs are the answer, not CoT.
 # GLM-5.2-FP8 is text-only, so MMMU-Pro is not applicable.
-# Tunables: MMLU_PRO_TASK (default mmlu_pro), EVAL_CONC (default 32),
+# Tunables: MMLU_PRO_TASK (default mmlu_pro), EVAL_CONC (default 64),
 #           EVAL_GEN_KWARGS (override the gen_kwargs JSON).
 run_mmlu_pro() {
     local out="$SAVE_DIR/mmlu_pro"
     mkdir -p "$out"
     local task="${MMLU_PRO_TASK:-mmlu_pro}"
-    local conc="${EVAL_CONC:-32}"
+    local conc="${EVAL_CONC:-64}"
     local base="http://0.0.0.0:$PORT/v1/chat/completions"
     # Disable thinking for GLM-5.2 (enable_thinking=false is the GLM knob; the
     # extra "thinking" key is harmless and matches the reference recipe).
