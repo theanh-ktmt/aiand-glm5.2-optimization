@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # run_all.sh — run the whole optimization campaign in the prescribed order:
-#   1. baseline      -> FULL sweep   (reference curve)
+#   1. baseline      -> SUBSET sweep  (reference curve; set BASELINE_SWEEP=full for the final)
 #   2. each opt      -> SUBSET sweep (1k/1k only, conc 1/16/128) for screening
 #   3. (later) build final config and re-run FULL manually.
 #
@@ -10,12 +10,12 @@
 # results/all.csv is written at the end for pasting into the sheet.
 #
 # Usage:
-#   bash run_all.sh                 # baseline full + all opts subset
+#   bash run_all.sh                 # all configs (baseline + opts) subset
 #   bash run_all.sh --only opt04_moe_deepgemm opt09_flashinfer_sampler
 #   SKIP_EXISTING=1 bash run_all.sh # resume: skip configs already done
 #                                   #   (those with results/<cfg>.csv, e.g. a
 #                                   #    baseline you ran earlier via run.sh)
-#   BASELINE_SWEEP=subset bash run_all.sh   # quick smoke of the whole pipeline
+#   BASELINE_SWEEP=full bash run_all.sh     # run baseline as a full reference sweep
 #   FULL_TIMEOUT=14400 bash run_all.sh      # raise the full-sweep cap
 #   CONFIG_TIMEOUT=0 bash run_all.sh         # disable per-config caps entirely
 #
@@ -34,7 +34,7 @@
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 [[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
-BASELINE_SWEEP="${BASELINE_SWEEP:-full}"
+BASELINE_SWEEP="${BASELINE_SWEEP:-subset}"
 OPT_SWEEP="${OPT_SWEEP:-subset}"
 SUBSET_TIMEOUT="${SUBSET_TIMEOUT:-2700}"    # 45m per screening (subset) config
 FULL_TIMEOUT="${FULL_TIMEOUT:-10800}"       # 3h per full-sweep config
