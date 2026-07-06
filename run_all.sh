@@ -21,7 +21,7 @@
 # Resilience: every config already fails fast on a stuck *startup*
 # (SERVER_STARTUP_TIMEOUT in common.sh) and the campaign continues on any failure.
 # Additionally:
-#   * CONFIG_TIMEOUT (default 10800s = 3h; set 0 to disable) is a HARD wall-clock
+#   * CONFIG_TIMEOUT (default 1800s = 30m; set 0 to disable) is a HARD wall-clock
 #     cap on each config — covers post-startup hangs (stuck benchmark cell /
 #     teardown). On expiry the run is killed (SIGTERM, then SIGKILL after 60s).
 #   * After every config (success, failure, or timeout) reap_gpu force-kills any
@@ -33,7 +33,7 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 [[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
 BASELINE_SWEEP="${BASELINE_SWEEP:-full}"
 OPT_SWEEP="${OPT_SWEEP:-subset}"
-CONFIG_TIMEOUT="${CONFIG_TIMEOUT:-10800}"   # seconds; 3h. Set 0 to disable.
+CONFIG_TIMEOUT="${CONFIG_TIMEOUT:-1800}"   # seconds; 30m. Set 0 to disable.
 
 # Make sure NO vLLM process is left holding the GPU before the next config.
 # The launcher's cmdline is 'vllm serve ...', but the memory is held by the
