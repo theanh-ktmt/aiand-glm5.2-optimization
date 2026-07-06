@@ -27,6 +27,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 
+# Exit codes so callers (run.sh) can tell apart the outcomes:
+#   0 = synced, 3 = skipped (nothing uploaded), 1 = error during upload.
+EXIT_OK, EXIT_ERROR, EXIT_SKIP = 0, 1, 3
+
+
+def skip(reason):
+    """Print a loud, un-missable banner and return the SKIP exit code."""
+    bar = "!" * 70
+    print(f"\n{bar}\n!! W&B SYNC SKIPPED - {reason}\n{bar}\n", file=sys.stderr)
+    return EXIT_SKIP
+
 
 def scen_label(isl, osl):
     def k(n):
@@ -71,30 +82,29 @@ def main():
     results_dir = Path(args.results_dir) if args.results_dir else REPO_ROOT / "results" / args.config
 
     if not csv_path.is_file():
-        print(f"WARN: {csv_path} not found; nothing to sync.", file=sys.stderr)
-        return 0
+        return skip(f"CSV not found: {csv_path} - did this config finish (run.sh)?")
 
     with open(csv_path, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     if not rows:
-        print(f"WARN: {csv_path} is empty.", file=sys.stderr)
-        return 0
+        return skip(f"CSV is empty: {csv_path}")
 
     header = list(rows[0].keys())
     mode = rows[0].get("Mode", "")
 
-    # --- best-effort guards -------------------------------------------------
+    # --- best-effort guards (make the reason LOUD so a skip isn't missed) ----
     if not args.dry_run:
-        if not (os.environ.get("WANDB_API_KEY") or (Path.home() / ".netrc").exists()):
-            print("WARN: no WANDB_API_KEY (and not logged in); skipping W&B sync.",
-                  file=sys.stderr)
-            return 0
+        have_key = bool((os.environ.get("WANDB_API_KEY") or "").strip())
+        have_netrc = (Path.home() / ".netrc").exists()
+        if not (have_key or have_netrc):
+            return skip("WANDB_API_KEY not in environment and no ~/.netrc login. "
+                        "It lives in .env, which only run.sh/run_all.sh load - "
+                        "run via those, or `export WANDB_API_KEY=...`.")
         try:
-            import wandb
+            import wandb  # noqa: F401
         except ImportError:
-            print("WARN: wandb not installed (`pip install wandb`); skipping.",
-                  file=sys.stderr)
-            return 0
+            return skip("wandb not installed. `pip install wandb` "
+                        "(container may have no internet).")
 
     # --- build per-concurrency log dicts ------------------------------------
     concs = sorted({int(r["Conc"]) for r in rows if r.get("Conc")})
@@ -162,17 +172,17 @@ def main():
                     art.add_file(str(p))
         run.log_artifact(art)
         run.finish()
-    except Exception as exc:  # noqa: BLE001 — make the real cause obvious
+    except Exception as exc:  # noqa: BLE001 - make the real cause obvious
         mode_env = os.environ.get("WANDB_MODE", "<unset>")
         print(f"ERROR: W&B sync failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         print(f"       project={project!r} entity={entity!r} "
               f"WANDB_MODE={mode_env} key_len={len(key)}", file=sys.stderr)
         print("       Hints: check the API key (no trailing chars), network to "
               "api.wandb.ai, and that WANDB_MODE isn't 'offline'.", file=sys.stderr)
-        return 1
+        return EXIT_ERROR
 
     print(f"W&B sync done: project={project} run={args.config}")
-    return 0
+    return EXIT_OK
 
 
 if __name__ == "__main__":

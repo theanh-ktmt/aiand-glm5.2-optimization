@@ -15,7 +15,9 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-[[ -f "$REPO_ROOT/.env" ]] && set -a && source "$REPO_ROOT/.env" && set +a
+# Load .env the same way run.sh does (CR-stripped, so a Windows CRLF .env
+# doesn't corrupt values like WANDB_API_KEY).
+[[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
 
 FAIL=0
 ok()   { echo "  OK   $*"; }
@@ -146,8 +148,16 @@ PY
 fi
 
 echo "== Optional: W&B =="
-if [[ -n "${WANDB_API_KEY:-}" ]]; then ok "WANDB_API_KEY set"; else warn "WANDB_API_KEY unset (set it in .env or run with WANDB=0)"; fi
-python3 -c "import wandb" 2>/dev/null && ok "wandb importable" || warn "wandb not installed (run.sh pip-installs it on demand)"
+if [[ "${WANDB:-1}" == "0" ]]; then
+    warn "WANDB=0 — W&B sync disabled; results will NOT be pushed off this box"
+else
+    if [[ -n "${WANDB_API_KEY:-}" ]]; then ok "WANDB_API_KEY loaded from .env (len ${#WANDB_API_KEY})"; \
+    elif [[ -f "$HOME/.netrc" ]]; then ok "no WANDB_API_KEY but ~/.netrc login present"; \
+    else warn "WANDB_API_KEY unset and no ~/.netrc — results will NOT sync (put key in .env, or set WANDB=0)"; fi
+    echo "  WANDB_PROJECT=${WANDB_PROJECT:-aiand-glm5.2-fp8}${WANDB_MODE:+  WANDB_MODE=$WANDB_MODE}"
+    [[ "${WANDB_MODE:-}" == "offline" ]] && warn "WANDB_MODE=offline — runs stay local in ./wandb, not synced to the cloud"
+    python3 -c "import wandb" 2>/dev/null && ok "wandb importable" || warn "wandb not installed (run.sh pip-installs it on demand; needs internet)"
+fi
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then echo "PREFLIGHT: PASS — good to go."; else echo "PREFLIGHT: FAIL — fix the FAIL lines above before a long run."; fi
