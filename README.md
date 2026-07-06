@@ -89,12 +89,6 @@ pushed at the end of the config: the per-concurrency curves (throughput / TTFT /
 TPOT, **x-axis = concurrency**), the full results table, and the raw JSONs /
 `server.log` / `bench.log` / `gpu.csv` / CSV as a run artifact.
 
-Optional live streaming: `WANDB_PERCELL=1` logs each `(scenario, concurrency)`
-cell the moment it finishes (watch the sweep fill in / survive a mid-sweep
-crash). Caveat: because the run is resumed across many short-lived processes,
-W&B plots per-cell data on a **time** x-axis rather than concurrency — so the
-default (per-config, conc x-axis) is usually what you want.
-
 Runs automatically from `run.sh` / `run_all.sh`. Setup on the box:
 
 ```bash

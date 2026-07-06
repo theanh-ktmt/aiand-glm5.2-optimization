@@ -121,16 +121,6 @@ for scenario in $SCENARIOS; do
             --result-filename "${fname}.json" \
             "${CHAT_TEMPLATE_ARG[@]}" \
             || echo "WARN: cell failed (ISL=$ISL OSL=$OSL CONC=$CONC), continuing"
-
-        # Live per-cell W&B log (best-effort): appends this cell to the config's
-        # single run (kept via WANDB_RUN_ID, set by run.sh). Skipped in the manual
-        # flow where WANDB_RUN_ID isn't set.
-        if [[ -f "$RESULT_DIR/${fname}.json" && "${WANDB:-1}" != "0" \
-              && "${WANDB_PERCELL:-1}" != "0" && -n "${WANDB_RUN_ID:-}" ]]; then
-            WANDB_SILENT=true python3 "$REPO_ROOT/wandb_sync.py" \
-                --log-cell "$RESULT_DIR/${fname}.json" \
-                || echo "WARN: per-cell W&B log failed ($fname)"
-        fi
     done
 done
 

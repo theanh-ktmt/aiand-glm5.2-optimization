@@ -32,11 +32,6 @@ SCRIPT="$REPO_ROOT/servers/$NAME.sh"
 # --- Upfront W&B readiness check -------------------------------------------
 # Warn NOW (before a possibly hours-long sweep) if results won't reach W&B,
 # so you can fix .env / install wandb instead of discovering it at the end.
-# Per-config logging by default: one W&B run logged in a single process, so the
-# charts use `conc` as the x-axis (via define_metric). Set WANDB_PERCELL=1 for
-# live per-cell streaming instead (durable/live, but W&B plots those on a time
-# axis because the run is resumed across many short-lived processes).
-PERCELL="${WANDB_PERCELL:-0}"
 if [[ "${WANDB:-1}" != "0" ]]; then
     if [[ -z "${WANDB_API_KEY:-}" && ! -f "$HOME/.netrc" ]]; then
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -47,14 +42,7 @@ if [[ "${WANDB:-1}" != "0" ]]; then
     elif ! python3 -c "import wandb" 2>/dev/null; then
         echo "NOTE: wandb not importable yet - run.sh will pip-install it before sync."
     else
-        echo "W&B ready: key loaded (len ${#WANDB_API_KEY}), project=${WANDB_PROJECT:-aiand-glm5.2-fp8}; per-cell=${PERCELL}."
-    fi
-    # One run per config; per-cell logs and the final table push both target it.
-    # A timestamp keeps re-runs as distinct runs. bench.sh inherits this id.
-    if [[ "$PERCELL" != "0" ]]; then
-        export WANDB_RUN_ID="${WANDB_RUN_ID:-${NAME}-$(date +%Y%m%d-%H%M%S)}"
-        export WANDB_PERCELL="$PERCELL"
-        echo "W&B run id: $WANDB_RUN_ID (live per-cell logging on)"
+        echo "W&B ready: key loaded (len ${#WANDB_API_KEY}), project=${WANDB_PROJECT:-aiand-glm5.2-fp8}."
     fi
 fi
 
@@ -70,9 +58,7 @@ echo "CSV: results/$NAME.csv"
 if [[ "${WANDB:-1}" != "0" ]]; then
     echo "### W&B SYNC $NAME ###"
     python3 -c "import wandb" 2>/dev/null || pip install -q wandb 2>/dev/null || true
-    # With per-cell on, the curves were already streamed -> only push table+artifact.
-    table_only=(); [[ "$PERCELL" != "0" ]] && table_only=(--table-only)
-    python3 "$REPO_ROOT/wandb_sync.py" --config "$NAME" "${table_only[@]}"; rc=$?
+    python3 "$REPO_ROOT/wandb_sync.py" --config "$NAME"; rc=$?
     case "$rc" in
         0) echo "W&B: synced $NAME OK" ;;
         3) echo "!! W&B: SKIPPED $NAME (results NOT in W&B - see banner above)" ;;
