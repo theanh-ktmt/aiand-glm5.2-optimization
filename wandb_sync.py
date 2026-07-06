@@ -141,7 +141,6 @@ def main():
                 "tp": os.environ.get("TP", "8"),
                 "num_gpus": os.environ.get("NUM_GPUS", "8"),
             },
-            reinit=True,
         )
 
         # Concurrency as the x-axis for every metric.
