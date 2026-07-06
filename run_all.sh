@@ -16,14 +16,17 @@
 #                                   #   (those with results/<cfg>.csv, e.g. a
 #                                   #    baseline you ran earlier via run.sh)
 #   BASELINE_SWEEP=subset bash run_all.sh   # quick smoke of the whole pipeline
-#   CONFIG_TIMEOUT=2400 bash run_all.sh     # tighten the per-config cap for screening
+#   FULL_TIMEOUT=14400 bash run_all.sh      # raise the full-sweep cap
+#   CONFIG_TIMEOUT=0 bash run_all.sh         # disable per-config caps entirely
 #
 # Resilience: every config already fails fast on a stuck *startup*
 # (SERVER_STARTUP_TIMEOUT in common.sh) and the campaign continues on any failure.
 # Additionally:
-#   * CONFIG_TIMEOUT (default 1800s = 30m; set 0 to disable) is a HARD wall-clock
-#     cap on each config — covers post-startup hangs (stuck benchmark cell /
-#     teardown). On expiry the run is killed (SIGTERM, then SIGKILL after 60s).
+#   * A HARD per-config wall-clock cap covers post-startup hangs (stuck benchmark
+#     cell / teardown). It is PER SWEEP: SUBSET_TIMEOUT (default 2700s = 45m) for
+#     screening configs, FULL_TIMEOUT (default 10800s = 3h) for full sweeps
+#     (baseline). Set CONFIG_TIMEOUT to force one cap for all (0 = disable).
+#     On expiry the run is killed (SIGTERM, then SIGKILL after 60s) and skipped.
 #   * After every config (success, failure, or timeout) reap_gpu force-kills any
 #     stray vLLM process and VERIFIES the GPU is free before the next config,
 #     so an orphaned/killed server never OOMs the next run.
@@ -33,7 +36,9 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 [[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
 BASELINE_SWEEP="${BASELINE_SWEEP:-full}"
 OPT_SWEEP="${OPT_SWEEP:-subset}"
-CONFIG_TIMEOUT="${CONFIG_TIMEOUT:-1800}"   # seconds; 30m. Set 0 to disable.
+SUBSET_TIMEOUT="${SUBSET_TIMEOUT:-2700}"    # 45m per screening (subset) config
+FULL_TIMEOUT="${FULL_TIMEOUT:-10800}"       # 3h per full-sweep config
+CONFIG_TIMEOUT="${CONFIG_TIMEOUT:-}"        # optional: one cap for ALL configs (0=disable)
 
 # Make sure NO vLLM process is left holding the GPU before the next config.
 # The launcher's cmdline is 'vllm serve ...', but the memory is held by the
@@ -93,13 +98,18 @@ for cfg in "${CONFIGS[@]}"; do
         echo "==================== SKIP $cfg (results/$cfg.csv exists) ===================="
         continue
     fi
-    echo "==================== $cfg (sweep=$sweep) ===================="
+    # Pick the cap: explicit CONFIG_TIMEOUT override, else per-sweep.
+    if [[ -n "$CONFIG_TIMEOUT" ]]; then to="$CONFIG_TIMEOUT"
+    elif [[ "$sweep" == "full" ]]; then to="$FULL_TIMEOUT"
+    else to="$SUBSET_TIMEOUT"; fi
+
+    echo "==================== $cfg (sweep=$sweep, cap=${to}s) ===================="
     rc=0
-    if [[ "$CONFIG_TIMEOUT" -gt 0 ]]; then
-        timeout --signal=TERM --kill-after=60 "$CONFIG_TIMEOUT" \
+    if [[ "$to" -gt 0 ]]; then
+        timeout --signal=TERM --kill-after=60 "$to" \
             bash "$REPO_ROOT/run.sh" "$cfg" "$sweep" || rc=$?
         if [[ "$rc" == "124" ]]; then
-            echo "WARN: $cfg exceeded CONFIG_TIMEOUT=${CONFIG_TIMEOUT}s — killed; skipping." >&2
+            echo "WARN: $cfg exceeded ${to}s cap — killed; skipping." >&2
         elif [[ "$rc" != "0" ]]; then
             echo "WARN: $cfg failed (rc=$rc); continuing to next config." >&2
         fi
