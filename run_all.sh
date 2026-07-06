@@ -19,7 +19,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-[[ -f "$REPO_ROOT/.env" ]] && set -a && source "$REPO_ROOT/.env" && set +a
+[[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
 BASELINE_SWEEP="${BASELINE_SWEEP:-full}"
 OPT_SWEEP="${OPT_SWEEP:-subset}"
 

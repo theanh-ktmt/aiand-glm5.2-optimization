@@ -119,43 +119,60 @@ def main():
         return 0
 
     import wandb
-    run = wandb.init(
-        project=args.project,
-        entity=args.entity,
-        group=args.group or mode,
-        name=args.config,
-        job_type="benchmark",
-        config={
-            "config": args.config,
-            "mode": mode,
-            "model": os.environ.get("MODEL", "zai-org/GLM-5.2-FP8"),
-            "tp": os.environ.get("TP", "8"),
-            "num_gpus": os.environ.get("NUM_GPUS", "8"),
-        },
-        reinit=True,
-    )
 
-    # Concurrency as the x-axis for every metric.
-    wandb.define_metric("conc")
-    wandb.define_metric("*", step_metric="conc")
-    for c in concs:
-        wandb.log({"conc": c, **per_conc[c]})
+    # Strip stray whitespace/CR that a CRLF-edited .env can leave on values.
+    project = (args.project or "").strip()
+    entity = (args.entity or "").strip() or None
+    key = (os.environ.get("WANDB_API_KEY") or "").strip()
 
-    # Full table for at-a-glance inspection.
-    table = wandb.Table(columns=header, data=[[r.get(h, "") for h in header] for r in rows])
-    wandb.log({"results_table": table})
+    try:
+        if key:
+            wandb.login(key=key)   # explicit -> fails loudly on a bad/corrupt key
+        run = wandb.init(
+            project=project,
+            entity=entity,
+            group=(args.group or mode),
+            name=args.config,
+            job_type="benchmark",
+            config={
+                "config": args.config,
+                "mode": mode,
+                "model": os.environ.get("MODEL", "zai-org/GLM-5.2-FP8"),
+                "tp": os.environ.get("TP", "8"),
+                "num_gpus": os.environ.get("NUM_GPUS", "8"),
+            },
+            reinit=True,
+        )
 
-    # Raw JSONs + logs as an artifact (so nothing is lost if the box dies).
-    art = wandb.Artifact(f"{args.config}-artifacts", type="benchmark")
-    art.add_file(str(csv_path))
-    if results_dir.is_dir():
-        for p in results_dir.iterdir():
-            if p.is_file():
-                art.add_file(str(p))
-    run.log_artifact(art)
+        # Concurrency as the x-axis for every metric.
+        wandb.define_metric("conc")
+        wandb.define_metric("*", step_metric="conc")
+        for c in concs:
+            wandb.log({"conc": c, **per_conc[c]})
 
-    run.finish()
-    print(f"W&B sync done: project={args.project} run={args.config}")
+        # Full table for at-a-glance inspection.
+        table = wandb.Table(columns=header, data=[[r.get(h, "") for h in header] for r in rows])
+        wandb.log({"results_table": table})
+
+        # Raw JSONs + logs as an artifact (so nothing is lost if the box dies).
+        art = wandb.Artifact(f"{args.config}-artifacts", type="benchmark")
+        art.add_file(str(csv_path))
+        if results_dir.is_dir():
+            for p in results_dir.iterdir():
+                if p.is_file():
+                    art.add_file(str(p))
+        run.log_artifact(art)
+        run.finish()
+    except Exception as exc:  # noqa: BLE001 — make the real cause obvious
+        mode_env = os.environ.get("WANDB_MODE", "<unset>")
+        print(f"ERROR: W&B sync failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(f"       project={project!r} entity={entity!r} "
+              f"WANDB_MODE={mode_env} key_len={len(key)}", file=sys.stderr)
+        print("       Hints: check the API key (no trailing chars), network to "
+              "api.wandb.ai, and that WANDB_MODE isn't 'offline'.", file=sys.stderr)
+        return 1
+
+    print(f"W&B sync done: project={project} run={args.config}")
     return 0
 
 

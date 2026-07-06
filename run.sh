@@ -19,8 +19,9 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 # Load secrets / settings (WANDB_API_KEY, WANDB_PROJECT, ...) if present.
-# .env is git-ignored — never commit credentials.
-[[ -f "$REPO_ROOT/.env" ]] && set -a && source "$REPO_ROOT/.env" && set +a
+# .env is git-ignored — never commit credentials. Strip CRs so a Windows-edited
+# (CRLF) .env doesn't append '\r' to values (which silently corrupts the API key).
+[[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
 
 NAME="${1:?usage: run.sh <config> [full|subset]}"
 SWEEP="${2:-subset}"
