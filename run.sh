@@ -32,7 +32,11 @@ SCRIPT="$REPO_ROOT/servers/$NAME.sh"
 # --- Upfront W&B readiness check -------------------------------------------
 # Warn NOW (before a possibly hours-long sweep) if results won't reach W&B,
 # so you can fix .env / install wandb instead of discovering it at the end.
-PERCELL="${WANDB_PERCELL:-1}"
+# Per-config logging by default: one W&B run logged in a single process, so the
+# charts use `conc` as the x-axis (via define_metric). Set WANDB_PERCELL=1 for
+# live per-cell streaming instead (durable/live, but W&B plots those on a time
+# axis because the run is resumed across many short-lived processes).
+PERCELL="${WANDB_PERCELL:-0}"
 if [[ "${WANDB:-1}" != "0" ]]; then
     if [[ -z "${WANDB_API_KEY:-}" && ! -f "$HOME/.netrc" ]]; then
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"

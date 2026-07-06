@@ -84,19 +84,18 @@ Each config writes everything to `results/<config>/`:
 
 ## Durability (Weights & Biases)
 
-These runs are long and unattended on on-demand cloud boxes, so results stream to
-W&B **live, per cell** — if the instance dies later, nothing is lost. Each config
-is **one W&B run** (kept via `WANDB_RUN_ID` + resume):
+Each config becomes **one W&B run** (so configs overlay in the dashboard),
+pushed at the end of the config: the per-concurrency curves (throughput / TTFT /
+TPOT, **x-axis = concurrency**), the full results table, and the raw JSONs /
+`server.log` / `bench.log` / `gpu.csv` / CSV as a run artifact.
 
-- **per-cell** — as each `(scenario, concurrency)` finishes, its point is logged
-  immediately (throughput / TTFT / TPOT, x-axis = concurrency), so you can watch
-  the curve fill in during the sweep;
-- **final push** — at the end of the config, the full results table + the raw
-  JSONs / `server.log` / `bench.log` / `gpu.csv` / CSV as a run artifact.
+Optional live streaming: `WANDB_PERCELL=1` logs each `(scenario, concurrency)`
+cell the moment it finishes (watch the sweep fill in / survive a mid-sweep
+crash). Caveat: because the run is resumed across many short-lived processes,
+W&B plots per-cell data on a **time** x-axis rather than concurrency — so the
+default (per-config, conc x-axis) is usually what you want.
 
-One run per config lets configs overlay in the dashboard. Disable per-cell with
-`WANDB_PERCELL=0` (then it's a single push at the end). Runs automatically from
-`run.sh` / `run_all.sh`. Setup on the box:
+Runs automatically from `run.sh` / `run_all.sh`. Setup on the box:
 
 ```bash
 cp .env.example .env      # then put your WANDB_API_KEY in .env (git-ignored)
