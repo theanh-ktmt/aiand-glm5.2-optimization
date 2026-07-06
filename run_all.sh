@@ -16,38 +16,50 @@
 #                                   #   (those with results/<cfg>.csv, e.g. a
 #                                   #    baseline you ran earlier via run.sh)
 #   BASELINE_SWEEP=subset bash run_all.sh   # quick smoke of the whole pipeline
-#   CONFIG_TIMEOUT=5400 bash run_all.sh     # hard per-config wall-clock cap (s)
+#   CONFIG_TIMEOUT=2400 bash run_all.sh     # tighten the per-config cap for screening
 #
 # Resilience: every config already fails fast on a stuck *startup*
-# (SERVER_STARTUP_TIMEOUT in common.sh) and the campaign continues to the next
-# config on any failure. Additionally:
-#   * CONFIG_TIMEOUT (default 0 = off) puts a HARD wall-clock cap on each config
-#     — covers post-startup hangs (a stuck benchmark cell / teardown). On expiry
-#     the run is killed (SIGTERM, then SIGKILL after 60s) and we skip on.
-#   * After every config (success, failure, or timeout) we reap any stray vLLM
-#     process and wait for GPU memory to drain, so the next config starts clean
-#     even if a killed run orphaned its server.
+# (SERVER_STARTUP_TIMEOUT in common.sh) and the campaign continues on any failure.
+# Additionally:
+#   * CONFIG_TIMEOUT (default 10800s = 3h; set 0 to disable) is a HARD wall-clock
+#     cap on each config — covers post-startup hangs (stuck benchmark cell /
+#     teardown). On expiry the run is killed (SIGTERM, then SIGKILL after 60s).
+#   * After every config (success, failure, or timeout) reap_gpu force-kills any
+#     stray vLLM process and VERIFIES the GPU is free before the next config,
+#     so an orphaned/killed server never OOMs the next run.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 [[ -f "$REPO_ROOT/.env" ]] && { set -a; source <(tr -d '\r' < "$REPO_ROOT/.env"); set +a; }
 BASELINE_SWEEP="${BASELINE_SWEEP:-full}"
 OPT_SWEEP="${OPT_SWEEP:-subset}"
-CONFIG_TIMEOUT="${CONFIG_TIMEOUT:-0}"   # seconds; 0 = no hard per-config cap
+CONFIG_TIMEOUT="${CONFIG_TIMEOUT:-10800}"   # seconds; 3h. Set 0 to disable.
 
-# Kill any lingering vLLM server and wait for GPU memory to drain. Belt-and-
-# suspenders between configs: a timed-out/force-killed run.sh can orphan the
-# server (it's a grandchild), which would OOM the next config.
+# Make sure NO vLLM process is left holding the GPU before the next config.
+# The launcher's cmdline is 'vllm serve ...', but the memory is held by the
+# engine/worker processes whose titles are 'VLLM::EngineCore' / 'VllmWorker'
+# (set via setproctitle) — so we match both, escalate to SIGKILL, and poll
+# nvidia-smi until memory actually drains.
 reap_gpu() {
+    echo ">>> reap_gpu: ensuring no vLLM process holds the GPU"
+    # graceful first
     pkill -TERM -f 'vllm serve' 2>/dev/null || true
+    pkill -TERM VLLM            2>/dev/null || true
     sleep 5
-    pkill -KILL -f 'vllm serve' 2>/dev/null || true
     local waited=0 used
     while [[ $waited -lt 180 ]]; do
         used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | sort -rn | head -1)
-        [[ -z "$used" || "$used" -lt 2000 ]] && break
-        sleep 3; waited=$((waited + 3))
+        if [[ -z "$used" || "$used" -lt 2000 ]]; then
+            echo ">>> reap_gpu: GPU clear (max used=${used:-NA} MiB)"
+            return 0
+        fi
+        echo ">>> reap_gpu: GPU still busy (${used} MiB) — pkill -9 vLLM"
+        pkill -9 -f 'vllm serve' 2>/dev/null || true
+        pkill -9 VLLM            2>/dev/null || true
+        pkill -9 -f 'vllm'       2>/dev/null || true
+        sleep 5; waited=$((waited + 5))
     done
+    echo "WARN: GPU still >2000 MiB used after reap — next config may OOM." >&2
 }
 
 # Screening order. DP8EP-dependent opts (a2a/eplb/dbo) are grouped after the
