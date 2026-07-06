@@ -76,5 +76,5 @@ disabled** (`--gen_kwargs` `chat_template_kwargs.enable_thinking=false`) and
 These are screening configs: adjust the values inline (or via the env vars shown,
 e.g. `EPLB_REDUNDANT`, the DBO thresholds), sweep, and keep the winners.
 
-Server startup is bounded by `SERVER_STARTUP_TIMEOUT` (default **900s = 15 min**);
+Server startup is bounded by `SERVER_STARTUP_TIMEOUT` (default **1800s = 30 min**);
 a launch that doesn't pass `/health` in time fails the run instead of hanging.

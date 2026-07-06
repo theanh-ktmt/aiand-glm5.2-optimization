@@ -124,8 +124,8 @@ ensure_model() {
 # Bounded readiness wait. Unlike InferenceX's wait_for_server_ready (which loops
 # forever until healthy), this gives up after SERVER_STARTUP_TIMEOUT seconds so a
 # hung / crash-looping launch fails the run instead of blocking. Returns non-zero
-# on timeout or if the server process dies. Default timeout: 900s (15 min).
-SERVER_STARTUP_TIMEOUT="${SERVER_STARTUP_TIMEOUT:-900}"
+# on timeout or if the server process dies. Default timeout: 1800s (30 min).
+SERVER_STARTUP_TIMEOUT="${SERVER_STARTUP_TIMEOUT:-1800}"
 export SERVER_STARTUP_TIMEOUT
 
 wait_for_health() {
