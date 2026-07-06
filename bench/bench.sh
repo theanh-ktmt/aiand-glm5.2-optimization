@@ -59,11 +59,12 @@ done
 [[ -f "$BENCH_PY" ]] || { echo "ERROR: $BENCH_PY missing. Run: git submodule update --init"; exit 1; }
 
 # --- Scenario / concurrency matrix -----------------------------------------
-SCENARIOS="${SCENARIOS:-1024:1024 8192:1024}"
-if [[ -z "${CONCS:-}" ]]; then
+# full   -> both scenarios (1k/1k + 8k/1k), conc 1..128
+# subset -> 1k/1k ONLY, conc 1/16/128 (faster screening loop)
+if [[ -z "${CONCS:-}" || -z "${SCENARIOS:-}" ]]; then
     case "$SWEEP" in
-        full)   CONCS="1 2 4 8 16 32 64 128" ;;
-        subset) CONCS="1 16 128" ;;
+        full)   CONCS="${CONCS:-1 2 4 8 16 32 64 128}"; SCENARIOS="${SCENARIOS:-1024:1024 8192:1024}" ;;
+        subset) CONCS="${CONCS:-1 16 128}";             SCENARIOS="${SCENARIOS:-1024:1024}" ;;
         *) echo "ERROR: SWEEP must be full|subset"; exit 1 ;;
     esac
 fi
@@ -120,6 +121,16 @@ for scenario in $SCENARIOS; do
             --result-filename "${fname}.json" \
             "${CHAT_TEMPLATE_ARG[@]}" \
             || echo "WARN: cell failed (ISL=$ISL OSL=$OSL CONC=$CONC), continuing"
+
+        # Live per-cell W&B log (best-effort): appends this cell to the config's
+        # single run (kept via WANDB_RUN_ID, set by run.sh). Skipped in the manual
+        # flow where WANDB_RUN_ID isn't set.
+        if [[ -f "$RESULT_DIR/${fname}.json" && "${WANDB:-1}" != "0" \
+              && "${WANDB_PERCELL:-1}" != "0" && -n "${WANDB_RUN_ID:-}" ]]; then
+            WANDB_SILENT=true python3 "$REPO_ROOT/wandb_sync.py" \
+                --log-cell "$RESULT_DIR/${fname}.json" \
+                || echo "WARN: per-cell W&B log failed ($fname)"
+        fi
     done
 done
 

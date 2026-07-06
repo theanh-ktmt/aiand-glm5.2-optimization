@@ -60,7 +60,8 @@ newer than your exact build), either update vLLM or skip that optimization.
   throughput is inflated.
 - Random dataset, `--random-range-ratio 0.8`, `--request-rate inf`,
   `--ignore-eos`, `--num-warmups = 2x concurrency`, `--num-prompts = 10x concurrency`.
-- Scenarios: **1k/1k** (`1024:1024`) and **8k/1k** (`8192:1024`).
+- Scenarios: **FULL** = **1k/1k** (`1024:1024`) + **8k/1k** (`8192:1024`);
+  **SUBSET** = **1k/1k only** (faster screening loop).
 - Concurrency sweep: `1 2 4 8 16 32 64 128` (FULL) or `1 16 128` (SUBSET, for
   screening — 128 also exercises the batch-size-gated MTP disable).
 - **MTP vs non-MTP** differ on the client by exactly one flag: MTP adds
@@ -83,16 +84,19 @@ Each config writes everything to `results/<config>/`:
 
 ## Durability (Weights & Biases)
 
-These runs are long and unattended on on-demand cloud boxes, so each config's
-results are pushed to W&B the moment it finishes — if the instance dies later,
-nothing is lost. `wandb_sync.py` logs (one run per config):
+These runs are long and unattended on on-demand cloud boxes, so results stream to
+W&B **live, per cell** — if the instance dies later, nothing is lost. Each config
+is **one W&B run** (kept via `WANDB_RUN_ID` + resume):
 
-- per-concurrency curves (throughput / TTFT / TPOT, x-axis = concurrency) so
-  configs overlay in the dashboard;
-- a summary table of every row;
-- the raw JSONs + `server.log` / `bench.log` / `gpu.csv` + the CSV as a run artifact.
+- **per-cell** — as each `(scenario, concurrency)` finishes, its point is logged
+  immediately (throughput / TTFT / TPOT, x-axis = concurrency), so you can watch
+  the curve fill in during the sweep;
+- **final push** — at the end of the config, the full results table + the raw
+  JSONs / `server.log` / `bench.log` / `gpu.csv` / CSV as a run artifact.
 
-Runs automatically at the end of `run.sh` / `run_all.sh`. Setup on the box:
+One run per config lets configs overlay in the dashboard. Disable per-cell with
+`WANDB_PERCELL=0` (then it's a single push at the end). Runs automatically from
+`run.sh` / `run_all.sh`. Setup on the box:
 
 ```bash
 cp .env.example .env      # then put your WANDB_API_KEY in .env (git-ignored)
