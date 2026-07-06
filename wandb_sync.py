@@ -81,16 +81,28 @@ def main():
     csv_path = Path(args.csv) if args.csv else REPO_ROOT / "results" / f"{args.config}.csv"
     results_dir = Path(args.results_dir) if args.results_dir else REPO_ROOT / "results" / args.config
 
-    if not csv_path.is_file():
-        return skip(f"CSV not found: {csv_path} - did this config finish (run.sh)?")
+    # A missing/empty CSV means no metrics/table, but the logs (server.log,
+    # gpu.csv, ...) are still worth keeping - upload them as a logs-only run
+    # rather than skipping. Only a truly empty state (no CSV AND no log files)
+    # is a skip.
+    have_csv = csv_path.is_file()
+    rows, header, mode = [], [], ""
+    if have_csv:
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+        if not rows:
+            have_csv = False
+        else:
+            header = list(rows[0].keys())
+            mode = rows[0].get("Mode", "")
 
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-    if not rows:
-        return skip(f"CSV is empty: {csv_path}")
-
-    header = list(rows[0].keys())
-    mode = rows[0].get("Mode", "")
+    if not have_csv:
+        has_logs = results_dir.is_dir() and any(p.is_file() for p in results_dir.iterdir())
+        if not has_logs:
+            return skip(f"CSV not found: {csv_path} and no log files in "
+                        f"{results_dir} - did this config finish (run.sh)?")
+        print(f"WARNING: CSV not found/empty ({csv_path}); uploading logs only "
+              f"from {results_dir}.", file=sys.stderr)
 
     # --- best-effort guards (make the reason LOUD so a skip isn't missed) ----
     if not args.dry_run:
@@ -159,13 +171,15 @@ def main():
         for c in concs:
             wandb.log({"conc": c, **per_conc[c]})
 
-        # Full table for at-a-glance inspection.
-        table = wandb.Table(columns=header, data=[[r.get(h, "") for h in header] for r in rows])
-        wandb.log({"results_table": table})
+        # Full table for at-a-glance inspection (only when we have CSV rows).
+        if rows:
+            table = wandb.Table(columns=header, data=[[r.get(h, "") for h in header] for r in rows])
+            wandb.log({"results_table": table})
 
         # Raw JSONs + logs as an artifact (so nothing is lost if the box dies).
         art = wandb.Artifact(f"{args.config}-artifacts", type="benchmark")
-        art.add_file(str(csv_path))
+        if have_csv:
+            art.add_file(str(csv_path))
         if results_dir.is_dir():
             for p in results_dir.iterdir():
                 if p.is_file():
