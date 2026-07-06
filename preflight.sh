@@ -83,11 +83,14 @@ HELP=""
 if command -v vllm >/dev/null 2>&1; then
     HELP="$(vllm serve --help=all 2>/dev/null)"
     [[ -z "$HELP" ]] && HELP="$(vllm serve --help 2>/dev/null)"   # fallback
-    # Collect serve flags ONLY from lines that begin with '--' (the SERVE_ARGS
-    # array elements and the common_serve_args echo block). This excludes comments
-    # and flags belonging to other commands (nvidia-smi/curl/hf/git) on other lines.
-    mapfile -t FLAGS < <(grep -rhE '^[[:space:]]*--' \
-        "$REPO_ROOT/common.sh" "$REPO_ROOT"/servers/*.sh \
+    # Collect serve flags ONLY from inside SERVE_ARGS=(...) / COMMON_SERVE_ARGS=(...)
+    # array blocks. This excludes flags from other commands in the file (e.g. the
+    # lm_eval invocation in run_mmlu_pro: --tasks/--output_path/--apply_chat_template).
+    mapfile -t FLAGS < <(awk '
+        /(COMMON_SERVE_ARGS|SERVE_ARGS)=\(/ { inarr=1; next }
+        inarr && /^[[:space:]]*\)/         { inarr=0; next }
+        inarr                              { print }
+    ' "$REPO_ROOT/common.sh" "$REPO_ROOT"/servers/*.sh \
         | grep -oE -- '--[a-zA-Z0-9][a-zA-Z0-9-]*' | sort -u)
     for fl in "${FLAGS[@]}"; do
         # --no-enable-* are the negated halves of BooleanOptionalAction flags.
