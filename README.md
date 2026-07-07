@@ -20,7 +20,8 @@ bench/bench.sh       InferenceX-style sweep (MTP and non-MTP) against a live ser
 run.sh               one config end-to-end: launch -> sweep -> teardown -> CSV
 run_all.sh           the whole campaign: baseline FULL + every opt SUBSET -> all.csv
 aggregate.py         result JSONs -> CSV (sheet-pasteable)
-servers/final.sh     TEMPLATE for the recommended config (fill in winners)
+servers/final1.sh    proposed config #1 (TP8);  final2.sh = #2 (DP8EP)  [MV-4594]
+run_final.sh         full bench for baseline + final1 + final2 -> final_full.csv
 eval/quality_check.sh  MMLU-Pro: baseline vs recommended config
 eval/parse_mmlu.py   lm-eval results -> accuracy comparison table + Pass?
 results/<config>/    per-config outputs: *.json, server.log (with launch command),
@@ -127,14 +128,16 @@ bash run_all.sh                    # baseline FULL + every opt SUBSET
 python3 aggregate.py results --baseline baseline --out results/all.csv
 ```
 
-### Final config + quality check
+### Final configs + full benchmark + quality check
 
-After screening, edit `servers/final.sh` (a template; each slot maps to an
-optimization group) to combine the winning flags, then:
+The two configs chosen from screening (MV-4594) are `servers/final1.sh` (TP8) and
+`servers/final2.sh` (DP8EP). Run the full reference benchmark for baseline + both
+finals (each a FULL sweep) and a clean 3-way comparison CSV:
 
 ```bash
-bash run.sh final full                      # full throughput/latency sweep
-bash eval/quality_check.sh baseline final   # MMLU-Pro accuracy, baseline vs final
+bash run_final.sh                           # -> results/final_full.csv
+bash eval/quality_check.sh baseline final1  # MMLU-Pro accuracy, baseline vs final1
+bash eval/quality_check.sh baseline final2  # ... and final2
 ```
 
 `quality_check.sh` launches each config, runs lm-eval `mmlu_pro` against the
@@ -151,7 +154,7 @@ text-only, so MMMU-Pro is skipped. Tunables: `EVAL_CONC` (default 64),
 
 1. Benchmark **baseline** (FULL sweep) - the reference curve.
 2. For each optimization, run a **SUBSET** sweep (`opt*`) and compare to baseline.
-3. Collect the winners into `servers/final.sh` and run a **FULL** sweep.
-4. Run `eval/quality_check.sh` (MMLU-Pro) on the final config vs baseline.
+3. Collect the winners into `servers/final1.sh` / `final2.sh` and run `run_final.sh` (FULL).
+4. Run `eval/quality_check.sh` (MMLU-Pro) on each final config vs baseline.
 
 See `SERVERS.md` for the full list of server scripts and what each one changes.

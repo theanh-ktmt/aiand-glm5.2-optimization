@@ -39,15 +39,19 @@ Bench mode is `mtp` (client adds `--use-chat-template`) for everything except
 | 9 | `opt09_flashinfer_sampler.sh` | Sampler | `VLLM_USE_FLASHINFER_SAMPLER=1` | mtp |
 | 10 | `opt10_cudagraph.sh` | CUDA graph | `--max-num-seqs 256 --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[…]}'` | mtp |
 | — | `ref_nonmtp.sh` | Reference | MTP disabled — quantifies MTP's contribution | **nonmtp** |
-| — | `final.sh` | **Recommended config TEMPLATE** | fill in the winning flags; ships equal to baseline | mtp |
+| — | `final1.sh` | **Proposed config #1 (TP8)** — MV-4594 | `VLLM_ATTENTION_BACKEND=FLASHMLA_SPARSE` + `--tensor-parallel-size 8 --max-num-batched-tokens 8192 --max-num-seqs 256 --gpu-memory-utilization 0.95` + MTP(2) | mtp |
+| — | `final2.sh` | **Proposed config #2 (DP8EP)** — MV-4594 | as final1 but `--data-parallel-size 8 --enable-expert-parallel --all2all-backend pplx` | mtp |
+
+Run the final FULL reference benchmark (baseline + both finals → 3-way CSV):
+`bash run_final.sh` → `results/final_full.csv`.
 
 ## Quality check (MMLU-Pro)
 
 Any server script also supports an accuracy run instead of a throughput sweep:
 
 ```bash
-RUN_EVAL=1 bash servers/final.sh        # launch -> lm-eval mmlu_pro -> teardown
-bash eval/quality_check.sh baseline final   # run both + print comparison table
+RUN_EVAL=1 bash servers/final1.sh        # launch -> lm-eval mmlu_pro -> teardown
+bash eval/quality_check.sh baseline final1   # run both + print comparison table
 ```
 
 Runs lm-eval `mmlu_pro` directly against `/v1/chat/completions` with **thinking

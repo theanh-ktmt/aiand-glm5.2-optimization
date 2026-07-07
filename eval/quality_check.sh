@@ -9,7 +9,7 @@
 # prints a comparison table and writes results/quality_check.csv.
 #
 # Usage:
-#   bash eval/quality_check.sh                 # baseline vs final
+#   bash eval/quality_check.sh                 # baseline vs final1
 #   bash eval/quality_check.sh baseline opt04_moe_deepgemm
 #   EVAL_CONC=128 bash eval/quality_check.sh   # override eval concurrency
 #
@@ -19,7 +19,7 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 BASE="${1:-baseline}"
-CAND="${2:-final}"
+CAND="${2:-final1}"
 
 PY="$(command -v python3 || command -v python)"
 
