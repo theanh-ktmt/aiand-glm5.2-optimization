@@ -1,0 +1,368 @@
+[33mcommit b85f08f7effef5b7e039dded80a3f59d4a28e680[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Fri Jul 10 13:17:02 2026 +0700
+
+    Revert "run_all: salvage aggregate+W&B sync when a config is killed/timed out"
+    
+    This reverts commit f900ee3871ef4acb5e90093b2332280ad58cd0d4.
+
+[33mcommit f900ee3871ef4acb5e90093b2332280ad58cd0d4[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Fri Jul 10 13:14:29 2026 +0700
+
+    run_all: salvage aggregate+W&B sync when a config is killed/timed out
+    
+    If run.sh is cut short (timeout/kill/error, rc!=0) it never reaches its own
+    aggregate+sync, so a killed config (e.g. baseline hitting the cap during first-
+    run model download) would vanish. Now run_all aggregates the completed cells and
+    syncs them to W&B as a fallback. On success run.sh already synced, so no double.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 2404b5c10f10a5554e6e160ddfd5c03c1d9b17b8[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Fri Jul 10 12:19:30 2026 +0700
+
+    wandb_sync: append sweep size to the run name (e.g. baseline-full)
+    
+    run.sh passes --sweep; wandb_sync uses <config>-<sweep> as the run name (and
+    artifact name) and records sweep in the run config. Keeps a full run distinct
+    from an earlier subset run of the same config.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 78dd800f8522996ad5d715f34b9260db66faa595[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Fri Jul 10 12:16:11 2026 +0700
+
+    Add pre-benchmark smoke test of the live server
+    
+    serve_main now sends a few sample chat requests right after the server is
+    healthy (before the sweep/eval) and prints prompt + response to stdout, so you
+    can eyeball that the server answers correctly. Thinking off for concise answers.
+    Toggle with SMOKE_TEST=0; SMOKE_TEST_STRICT=1 aborts on total failure. Runs for
+    every config in run.sh / run_all.sh / run_final.sh.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 290e9d98761d5765e76b6912541f81e8c5d6d038[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Tue Jul 7 14:36:03 2026 +0700
+
+    quality_check: accept N configs (default baseline final1 final2)
+    
+    First config is the baseline reference; each other gets a delta + Pass? in one
+    table. parse_mmlu.py already handled N dirs.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 8459086a5a913f0738dca535075fac4b66876728[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Tue Jul 7 14:32:43 2026 +0700
+
+    Add final1/final2 proposed configs (MV-4594) + run_final.sh full bench
+    
+    - servers/final1.sh: TP8 + FLASHMLA_SPARSE + hyperparams(8192/256/0.95) + MTP(2)
+    - servers/final2.sh: DP8EP (dp8 + EP + pplx all2all) + same attn/hyperparams/MTP
+    - run_final.sh: FULL sweep for baseline + final1 + final2 (reuses run_all's
+      timeout/reap/W&B) then a clean 3-way results/final_full.csv
+    - remove superseded final.sh template; quality_check default candidate -> final1
+    - docs updated
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 3f05e3479c0148007b6d3fde9edf472b06aaa2ce[m
+Author: trantheanh.ktmt <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 21:50:19 2026 +0700
+
+    wandb_sync: upload logs even when CSV is missing
+    
+    Fall back to a logs-only run (server.log, gpu.csv, ...) instead of
+    skipping when results/<config>.csv is absent or empty. Only skip when
+    there is no CSV AND no log files. Guard the table log and CSV
+    add_file so the artifact upload doesn't crash without a CSV.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 4305fa4d87968bfa5bfebf3e02c6ef4a9932654d[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 16:01:04 2026 +0700
+
+    run_all: baseline defaults to SUBSET sweep
+    
+    BASELINE_SWEEP now defaults to subset (like the opts) for a fast full pass;
+    set BASELINE_SWEEP=full to run baseline as a full reference sweep.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 32384c338c75282d0671550735467694ccf9f895[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:59:37 2026 +0700
+
+    Remove per-cell W&B logging; back to one push per config
+    
+    Drop --log-cell/--table-only/WANDB_RUN_ID/WANDB_PERCELL machinery from
+    wandb_sync.py, run.sh, and bench.sh. Each config logs a single W&B run
+    (conc x-axis via define_metric) + table + artifact at the end. Kept the
+    loud skip/error banners, exit codes, wandb.login and CRLF handling.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit de4311085c3d0b06779a5eeb19b81de508a12065[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:56:37 2026 +0700
+
+    Default W&B logging back to per-config (conc on x-axis)
+    
+    Per-cell logging resumes one run across many short-lived processes, which makes
+    W&B plot on a time axis instead of concurrency. Flip WANDB_PERCELL default to 0
+    so each config logs in a single process with define_metric -> conc x-axis.
+    Per-cell live streaming stays available via WANDB_PERCELL=1 (time axis).
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 71f0483ccdaf9e3c91dfc3f5ca4c2465ff979a22[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:45:11 2026 +0700
+
+    run_all: per-sweep timeout caps (subset 45m, full 3h)
+    
+    Replace single CONFIG_TIMEOUT default with SUBSET_TIMEOUT (2700s) and
+    FULL_TIMEOUT (10800s), picked by the config's sweep. CONFIG_TIMEOUT still
+    works as an explicit override for all configs (0 disables). So baseline (full)
+    gets 3h and screening opts get 45m automatically.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit ad4d3cd8472291e157c5d69fa15ae0d6f8e79c4d[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:43:11 2026 +0700
+
+    run_all: default CONFIG_TIMEOUT to 1800s (30m)
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 006e93db3b4fb0c258d789907b17f2c4a4e8b4bf[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:42:14 2026 +0700
+
+    run_all: per-config timeout ON by default + reap kills vLLM workers, verifies GPU
+    
+    - CONFIG_TIMEOUT now defaults to 10800s (3h); set 0 to disable
+    - reap_gpu: also SIGKILL the engine/worker procs (VLLM::EngineCore / VllmWorker,
+      which actually hold the GPU) via `pkill -9 VLLM`, escalate to pkill -9, and
+      poll nvidia-smi until memory drains before the next config starts
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 9cd9ddb7b28a14ee1f1ef3644cef94aa0e898649[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:38:50 2026 +0700
+
+    run_all: hard per-config CONFIG_TIMEOUT + GPU reap between configs
+    
+    - CONFIG_TIMEOUT (default 0=off): wrap each run.sh in `timeout` (SIGTERM then
+      SIGKILL after 60s) to cap post-startup hangs; rc=124 -> warn + skip on
+    - reap_gpu after every config: pkill stray 'vllm serve' and wait for GPU memory
+      to drain, so a killed/orphaned server doesn't OOM the next config
+    - fix stale subset comment (1k/1k only, conc 1/16/128)
+    
+    Startup hangs remain bounded by SERVER_STARTUP_TIMEOUT; failures still skip on.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit d3eefbd5a62d53beb1c227c850ec8b5bd88de0b4[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:29:15 2026 +0700
+
+    Reduce default SERVER_STARTUP_TIMEOUT 1800s -> 1200s (20 min)
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 56ada639c1382dfbbc33fba672b1344c336cba2e[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:27:46 2026 +0700
+
+    Live per-cell W&B logging + subset = 1k/1k only
+    
+    - wandb_sync.py: --log-cell (log one result JSON live) and --table-only (final
+      push adds table+artifact without re-logging streamed points). One run per
+      config, kept via WANDB_RUN_ID + resume.
+    - bench.sh: after each cell, log it to W&B (best-effort, WANDB_SILENT); subset
+      sweep now runs 1k/1k ONLY (8k/1k dropped) for a faster screening loop.
+    - run.sh: set WANDB_RUN_ID before the sweep so bench.sh streams into the same
+      run; final push uses --table-only when per-cell is on. WANDB_PERCELL=0 opts out.
+    - docs/.env.example updated.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit ae058ee80b765ebb3b4dd8c60fb94bafa5771dc5[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:19:15 2026 +0700
+
+    Make W&B sync visibility loud: upfront check + skip/fail banners
+    
+    - run.sh: upfront W&B readiness check before the sweep (warns if key/wandb
+      missing so you know results won't sync BEFORE a long run); per-config
+      synced/SKIPPED/FAILED status after sync
+    - wandb_sync.py: distinct exit codes (0 ok / 3 skip / 1 error) and a loud
+      banner on every skip reason (no key, wandb missing, no CSV)
+    - preflight.sh: load .env CR-stripped; clearer W&B verdict (key len, project,
+      offline-mode warning)
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit cf98e61696fe24e3d9b5cd3e11fd71b33b5d3762[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 15:10:35 2026 +0700
+
+    wandb_sync: drop deprecated reinit arg (one run per process)
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit bf734a4588a938de722b50533dc11db62f2d1c02[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 14:57:20 2026 +0700
+
+    Fix W&B sync silently failing on a CRLF-edited .env
+    
+    - run.sh/run_all.sh: strip CR when sourcing .env (a Windows CRLF .env appended
+      '\r' to WANDB_API_KEY, corrupting the key so wandb auth failed silently)
+    - wandb_sync.py: explicit wandb.login(key), strip whitespace from project/entity,
+      and wrap the W&B calls to print the real error + hints instead of a buried
+      traceback
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit bfb3dc94fdfb227c1308438bb2f0a5964c5dfc4c[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 14:33:26 2026 +0700
+
+    Increase default SERVER_STARTUP_TIMEOUT 900s -> 1800s
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 101ccb4c91c243b2e70bcc3c022b94cdd0045fd0[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Mon Jul 6 14:20:41 2026 +0700
+
+    preflight: scope serve-flag check to SERVE_ARGS arrays only
+    
+    Previously it scraped every '--' line in common.sh, which now includes the
+    lm_eval command in run_mmlu_pro (--tasks/--output_path/--apply_chat_template),
+    producing false FAILs. Extract flags only from inside SERVE_ARGS=(...) /
+    COMMON_SERVE_ARGS=(...) blocks.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit cdb2583d8579fd13c9a6b0b08a8cf200252efe0a[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 17:42:10 2026 +0700
+
+    MMLU-Pro: bump default EVAL_CONC to 64
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 837215c9f52f1055a4e6e966130368f385fff79e[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 17:37:42 2026 +0700
+
+    MMLU-Pro eval: use our own lm-eval invocation with thinking OFF
+    
+    Replace the InferenceX run_eval delegation (which hardcodes gen_kwargs and can't
+    disable thinking) with a direct lm_eval call following the reference recipe:
+      --model local-chat-completions --tasks mmlu_pro --apply_chat_template
+      --gen_kwargs '{"chat_template_kwargs": {"enable_thinking": false, "thinking": false}}'
+      --output_path <save> --log_samples --model_args ...num_concurrent=32
+    Thinking is disabled (GLM-5.2 is a reasoning model); results are saved. The
+    throughput benchmark still uses InferenceX. Docs updated.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 5ad023b8ca92d3d762d0dfb19bc806e62974104c[m
+Merge: 1d2c507 3355bae
+Author: The Anh Tran <53089296+theanh-ktmt@users.noreply.github.com>
+Date:   Wed Jul 1 17:10:01 2026 +0700
+
+    Merge pull request #1 from theanh-ktmt/fix/bench-model-path-and-argv
+    
+    Space-safe serve args + ignore wandb/ cache
+
+[33mcommit 3355bae5b76d620ecc371a29e3bcb2b38e3bceaf[m
+Author: The Anh Tran <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 19:09:29 2026 +0900
+
+    gitignore: ignore local wandb/ run cache
+    
+    W&B writes a local run cache under wandb/; results are synced to the W&B
+    service, so the local cache should not be tracked.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 4b413c5cc62686447bec6a622c6c6d01bb45f502[m
+Author: The Anh Tran <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 19:09:13 2026 +0900
+
+    common.sh: build serve args as an array to preserve space-containing values
+    
+    common_serve_args echoed its flags as a single string and launch_vllm
+    re-split that string with `read -a`, which word-splits on whitespace and
+    ignores quoting. Any flag whose value contains a space (e.g. a JSON value
+    like --compilation-config '{"cudagraph_mode": "PIECEWISE"}') was broken into
+    two tokens, so vLLM received truncated, invalid JSON and refused to start.
+    
+    Populate a COMMON_SERVE_ARGS array instead and splice it in directly, so each
+    argument stays a single element regardless of internal spaces. The
+    --served-model-name flag is preserved.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 1d2c5072fe08c22e3f91da131fb0992a3c113d41[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 16:40:08 2026 +0700
+
+    Make MODEL_PATH usage correct + guard against wrong model
+    
+    - common.sh: pin --served-model-name "$MODEL" so serving from a local weights
+      dir still matches the client's --model (avoids 404 model-name mismatch)
+    - bench.sh: --tokenizer defaults to MODEL_PATH (offline-safe) else MODEL
+    - preflight.sh: new Model section — verifies MODEL_PATH exists/non-empty and
+      warns if it doesn't look like a GLM model (harness serves whatever it points to)
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit bb3f8c41e497f175209e09e0c39020681ddd34b9[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 13:55:20 2026 +0700
+
+    preflight: use 'vllm serve --help=all' and validate enum flag values
+    
+    - plain 'vllm serve --help' only prints config-group pointers in 0.23.x, so the
+      flag existence check now uses --help=all (with --help fallback)
+    - add enum-value check: confirm the moe-backend / all2all-backend / kv-cache-dtype
+      values we pass are in this build's accepted choice lists
+    
+    Verified against a real 0.23.x `vllm serve --help=all`: all 25 serve flags and
+    all backend/kv-cache values used by the configs are present.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit 19cdee0f5245ca4cbaf7764f9802b12c07f8c126[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Wed Jul 1 13:47:08 2026 +0700
+
+    Rename default W&B project to aiand-glm5.2-fp8
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+[33mcommit e82e1114ac873ee078ddafb079b688d501e48e07[m
+Author: theanhtran372000 <trantheanh.ktmt@gmail.com>
+Date:   Tue Jun 30 17:17:29 2026 +0700
+
+    run_all.sh: add SKIP_EXISTING resume flag
+    
+    Skip any config that already has results/<cfg>.csv (written only after a
+    successful run), so re-running the campaign doesn't redo a baseline/config
+    you already completed.
+    
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>

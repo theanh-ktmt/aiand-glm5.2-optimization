@@ -40,7 +40,7 @@ Bench mode is `mtp` (client adds `--use-chat-template`) for everything except
 | 10 | `opt10_cudagraph.sh` | CUDA graph | `--max-num-seqs 256 --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[…]}'` | mtp |
 | — | `ref_nonmtp.sh` | Reference | MTP disabled — quantifies MTP's contribution | **nonmtp** |
 | — | `final1.sh` | **Proposed config #1 (TP8)** — MV-4594 | `VLLM_ATTENTION_BACKEND=FLASHMLA_SPARSE` + `--tensor-parallel-size 8 --max-num-batched-tokens 8192 --max-num-seqs 256 --gpu-memory-utilization 0.95` + MTP(2) | mtp |
-| — | `final2.sh` | **Proposed config #2 (DP8EP)** — MV-4594 | as final1 but `--data-parallel-size 8 --enable-expert-parallel --all2all-backend pplx` | mtp |
+| — | `final2.sh` | **Proposed config #2 (DP8EP)** — MV-4594 | as final1 but `--data-parallel-size 8 --enable-expert-parallel --all2all-backend naive` (pplx removed in 0.24.0; naive matches its throughput) | mtp |
 
 Run the final FULL reference benchmark (baseline + both finals → 3-way CSV):
 `bash run_final.sh` → `results/final_full.csv`.
@@ -66,7 +66,8 @@ disabled** (`--gen_kwargs` `chat_template_kwargs.enable_thinking=false`) and
   `triton`, `cutlass`, `deep_gemm`, `flashinfer_trtllm`, `flashinfer_cutlass`, …
 - **All2All** (`--all2all-backend`): `naive`, `pplx`, `deepep_low_latency`,
   `deepep_high_throughput`, `flashinfer_nvlink_two_sided` (a.k.a. flashinfer_nvlink),
-  `flashinfer_all2allv`.
+  `flashinfer_all2allv`. NOTE: `pplx` was **removed in vLLM 0.24.0** (silently
+  falls back to `allgather_reducescatter`); use `naive` on 0.24.x.
 - **Attention** (`VLLM_ATTENTION_BACKEND`): GLM-5.2 uses sparse MLA (DSA), so the
   relevant backends are `FLASHINFER_MLA_SPARSE` (FlashInfer + TRT-LLM decode) and
   `FLASHMLA_SPARSE`. Adjust if the installed build exposes different names
