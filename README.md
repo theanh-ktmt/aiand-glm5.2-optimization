@@ -140,6 +140,12 @@ bash eval/quality_check.sh baseline final1  # MMLU-Pro accuracy, baseline vs fin
 bash eval/quality_check.sh baseline final2  # ... and final2
 ```
 
+Before each config's sweep, a **smoke test** sends a few sample chat requests to
+the freshly-launched server and prints prompt + response to stdout, so you can
+confirm it answers correctly before committing to the sweep. Disable with
+`SMOKE_TEST=0`; abort the run if the server returns no usable output with
+`SMOKE_TEST_STRICT=1`.
+
 `quality_check.sh` launches each config, runs lm-eval `mmlu_pro` against the
 `/v1/chat/completions` endpoint **with thinking disabled** (via
 `--gen_kwargs '{"chat_template_kwargs": {"enable_thinking": false, "thinking": false}}'`),

@@ -242,6 +242,69 @@ run_mmlu_pro() {
     return "${PIPESTATUS[0]}"
 }
 
+# smoke_test — sanity-check the live server BEFORE benchmarking: send a few
+# sample chat requests and print prompt + response to stdout, so you can eyeball
+# that the server answers correctly (and MTP/chat template work). Thinking is off
+# for concise, easy-to-verify answers. Skip with SMOKE_TEST=0; abort the run on
+# total failure with SMOKE_TEST_STRICT=1.
+smoke_test() {
+    local base="http://0.0.0.0:$PORT/v1/chat/completions"
+    local prompts=(
+        "What is the capital of France? Answer in one word."
+        "Compute 17 * 23. Give only the number."
+        "Reply with exactly this word: OK"
+    )
+    echo "=============================================================="
+    echo "  SMOKE TEST ($CONFIG): ${#prompts[@]} sample requests -> $base"
+    echo "=============================================================="
+    local ok=0 i=0 p payload resp
+    for p in "${prompts[@]}"; do
+        i=$((i + 1))
+        echo ">>> [$i] prompt: $p"
+        payload=$(MODEL="$MODEL" PROMPT="$p" python3 -c '
+import json, os
+print(json.dumps({
+    "model": os.environ["MODEL"],
+    "messages": [{"role": "user", "content": os.environ["PROMPT"]}],
+    "max_tokens": 256,
+    "temperature": 0,
+    "chat_template_kwargs": {"enable_thinking": False, "thinking": False},
+}))')
+        resp=$(curl -sS -m 120 -X POST "$base" \
+            -H 'Content-Type: application/json' -d "$payload" 2>&1)
+        if printf '%s' "$resp" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except Exception:
+    print("    ERROR: non-JSON response:", raw[:300]); sys.exit(2)
+if "choices" not in d:
+    print("    ERROR: no choices; server said:", json.dumps(d)[:300]); sys.exit(2)
+ch = (d.get("choices") or [{}])[0]
+msg = ch.get("message", {}) or {}
+content = msg.get("content")
+reasoning = msg.get("reasoning_content")
+usage = d.get("usage", {}) or {}
+if reasoning:
+    print("    reasoning:", reasoning[:160] + ("..." if len(reasoning) > 160 else ""))
+print("    response:", content if content not in (None, "") else "<empty>")
+print("    finish:", ch.get("finish_reason"), "| completion_tokens:", usage.get("completion_tokens"))
+sys.exit(0 if content not in (None, "") else 3)
+'; then
+            ok=$((ok + 1))
+        else
+            echo "    (request $i did not return usable content)"
+        fi
+    done
+    echo "  SMOKE TEST: $ok/$i requests returned content"
+    if [[ "$ok" -eq 0 ]]; then
+        echo "  WARNING: server produced no usable output on any smoke request." >&2
+        [[ "${SMOKE_TEST_STRICT:-0}" == "1" ]] && return 1
+    fi
+    return 0
+}
+
 # serve_main — entrypoint every servers/*.sh calls after defining:
 #     CONFIG       config label (e.g. opt04c_moe_deepgemm)
 #     BENCH_MODE   mtp | nonmtp  (whether the bench client adds --use-chat-template)
@@ -261,6 +324,16 @@ serve_main() {
     trap cleanup_server EXIT INT TERM
     start_gpu_monitor --output "$SAVE_DIR/gpu.csv" 2>/dev/null || true
     launch_vllm "$CONFIG" "${SERVE_ARGS[@]}" || exit 1
+
+    # Sanity-check the server before spending time on a full sweep.
+    if [[ "${SMOKE_TEST:-1}" != "0" ]]; then
+        if ! smoke_test; then
+            echo "ERROR: smoke test failed (SMOKE_TEST_STRICT=1); tearing down." >&2
+            stop_gpu_monitor 2>/dev/null || true
+            cleanup_server
+            exit 1
+        fi
+    fi
 
     if [[ "${RUN_EVAL:-0}" == "1" ]]; then
         run_mmlu_pro
