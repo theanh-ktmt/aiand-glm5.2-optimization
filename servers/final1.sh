@@ -14,6 +14,6 @@ SERVE_ARGS=(
     --max-num-batched-tokens 8192
     --max-num-seqs 256
     --gpu-memory-utilization 0.95
-    --speculative-config '{"method":"mtp","num_speculative_tokens":2}'
+    --speculative-config '{"method":"mtp","num_speculative_tokens":1}'
 )
 serve_main
