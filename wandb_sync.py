@@ -70,6 +70,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", required=True, help="config name (e.g. baseline)")
+    ap.add_argument("--sweep", default=os.environ.get("WANDB_SWEEP", ""),
+                    help="sweep size (full|subset); appended to the run name")
     ap.add_argument("--csv", help="CSV path (default results/<config>.csv)")
     ap.add_argument("--results-dir", help="dir with JSON/logs (default results/<config>)")
     ap.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "aiand-glm5.2-fp8"))
@@ -77,6 +79,10 @@ def main():
     ap.add_argument("--group", default=os.environ.get("WANDB_GROUP"))
     ap.add_argument("--dry-run", action="store_true", help="parse + print, no W&B upload")
     args = ap.parse_args()
+
+    # Run name includes the sweep size, e.g. "baseline-full" / "final1-subset".
+    sweep = (args.sweep or "").strip()
+    run_name = f"{args.config}-{sweep}" if sweep else args.config
 
     csv_path = Path(args.csv) if args.csv else REPO_ROOT / "results" / f"{args.config}.csv"
     results_dir = Path(args.results_dir) if args.results_dir else REPO_ROOT / "results" / args.config
@@ -132,7 +138,7 @@ def main():
                 per_conc[c][f"{s}/{short}"] = v
 
     if args.dry_run:
-        print(f"[dry-run] config={args.config} mode={mode} project={args.project}")
+        print(f"[dry-run] run={run_name} config={args.config} mode={mode} project={args.project}")
         print(f"[dry-run] rows={len(rows)} concs={concs}")
         for c in concs:
             print(f"[dry-run] step conc={c}: {per_conc[c]}")
@@ -154,10 +160,11 @@ def main():
             project=project,
             entity=entity,
             group=(args.group or mode),
-            name=args.config,
+            name=run_name,
             job_type="benchmark",
             config={
                 "config": args.config,
+                "sweep": sweep or None,
                 "mode": mode,
                 "model": os.environ.get("MODEL", "zai-org/GLM-5.2-FP8"),
                 "tp": os.environ.get("TP", "8"),
@@ -177,7 +184,7 @@ def main():
             wandb.log({"results_table": table})
 
         # Raw JSONs + logs as an artifact (so nothing is lost if the box dies).
-        art = wandb.Artifact(f"{args.config}-artifacts", type="benchmark")
+        art = wandb.Artifact(f"{run_name}-artifacts", type="benchmark")
         if have_csv:
             art.add_file(str(csv_path))
         if results_dir.is_dir():
@@ -195,7 +202,7 @@ def main():
               "api.wandb.ai, and that WANDB_MODE isn't 'offline'.", file=sys.stderr)
         return EXIT_ERROR
 
-    print(f"W&B sync done: project={project} run={args.config}")
+    print(f"W&B sync done: project={project} run={run_name}")
     return EXIT_OK
 
 

@@ -58,7 +58,7 @@ echo "CSV: results/$NAME.csv"
 if [[ "${WANDB:-1}" != "0" ]]; then
     echo "### W&B SYNC $NAME ###"
     python3 -c "import wandb" 2>/dev/null || pip install -q wandb 2>/dev/null || true
-    python3 "$REPO_ROOT/wandb_sync.py" --config "$NAME"; rc=$?
+    python3 "$REPO_ROOT/wandb_sync.py" --config "$NAME" --sweep "$SWEEP"; rc=$?
     case "$rc" in
         0) echo "W&B: synced $NAME OK" ;;
         3) echo "!! W&B: SKIPPED $NAME (results NOT in W&B - see banner above)" ;;
