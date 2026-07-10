@@ -22,7 +22,7 @@ SERVE_ARGS=(
     --all2all-backend allgather_reducescatter
     --max-num-batched-tokens 8192
     --max-num-seqs 256
-    --gpu-memory-utilization 0.95
+    --gpu-memory-utilization 0.90
     --speculative-config '{"method":"mtp","num_speculative_tokens":2}'
 )
 serve_main
